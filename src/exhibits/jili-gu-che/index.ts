@@ -192,11 +192,12 @@ export default defineExhibit<CarState, CarControls>({
     {
       id: 'xuanfeng',
       label: '旋风轮拨齿',
-      target: [-30, 1262, -190],
-      size: 380,
-      dir: [0.3, 1, -0.45],
-      // 只留到 y=1330：揭去小平轮、上平轮，露出铜旋风轮的三根拨齿怎样拨中平轮的木销
-      section: { normal: [0, -1, 0], offset: -1330, label: '水平剖开，揭去上面各层，只留旋风轮与中平轮所在的一层' },
+      target: [-12, 1250, -204],
+      size: 150,
+      // 从中平轮轮缘外侧、略高于轮缘处斜着看进去：木销垂在轮缘底下，俯视会被轮缘盖住
+      dir: [0.97, 0.3, 0.15],
+      // 只留到 y=1302（中平轮轮毂顶面之上一点）：揭去小平轮、上平轮，露出铜旋风轮的三根拨齿怎样拨中平轮的木销
+      section: { normal: [0, -1, 0], offset: -1302, label: '水平剖开，揭去上面各层，只留旋风轮与中平轮所在的一层' },
       fade: ['wheel-left', 'wheel-right', 'frame-lower'],
       note: '揭去上层，足轮车架让开：看旋风轮拨中平轮',
     },
