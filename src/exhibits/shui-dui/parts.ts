@@ -181,10 +181,10 @@ const streamSolid = (k: Kernel): Solid => k.boxFromTo([-1100, 0.1, -250], [1100,
 
 export const FLUME = {
   x0: 760,
-  x1: 2100,
+  x1: 1500,
   y: 1990,
   halfW: 150,
-  legsAt: [1250, 1950],
+  legsAt: [1180, 1440],
   /** 水柱下端 */
   jetBottom: 1870,
 } as const
@@ -199,7 +199,7 @@ export const parts: PartDef<DuiState>[] = [
     ...PART_TEXT.bed,
     group: 'base',
     material: 'earth',
-    solid: (k) => k.boxFromTo([-1200, -100, -520], [2300, 0, 2000]),
+    solid: (k) => k.boxFromTo([-1150, -100, -460], [1700, 0, 1950]),
     rest: { p: [0, 0, 0] },
     explode: { dir: [0, 1, 0], distance: 0, order: 0 },
   },

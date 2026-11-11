@@ -90,7 +90,8 @@ export default defineExhibit<DuiState, DuiControls>({
     },
   ],
   sources,
-  view: { dir: [1, 0.55, 1.15] },
+  view: { dir: [0.55, 0.7, 1] },
+  section: { normal: [0, 0, -1], offset: -1200, label: '剖掉碓三一侧，露出碓二的拨板与碓尾' },
   audit: {
     phases: 120,
     contacts: [
