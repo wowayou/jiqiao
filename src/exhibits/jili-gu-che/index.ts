@@ -18,7 +18,6 @@ const liBu = (s: CarState) => {
 
 /** 此刻在啮合推进的级：一级（立轮→下平轮）只要车在走就一直在推；二、三级只在旋风轮拨齿时推 */
 export const stageActive = {
-  roll: (_s: CarState) => true,
   mesh1: (_s: CarState) => true,
   mesh2: (s: CarState) => s.ang.pushing,
   mesh3: (s: CarState) => s.ang.pushing,
@@ -40,7 +39,6 @@ export default defineExhibit<CarState, CarControls>({
       text: '车往前走，足轮贴着地面滚。原文：足轮一周行地三步，三百步为一里——所以足轮转 100 周就是一里。',
       provenance: 'source',
       cite: 'zu',
-      active: stageActive.roll,
     },
     {
       id: 'li',
@@ -53,7 +51,7 @@ export default defineExhibit<CarState, CarControls>({
     {
       id: 'mesh1',
       title: '立轮 18 齿 → 下平轮 54 齿',
-      parts: ['li-lun', 'xia-ping'],
+      parts: ['li-lun', 'xia-ping#pins'],
       text: '立轮顶上的木销从下面拨动下平轮垂下的木销。18 : 54，足轮转 3 周，下平轮转 1 周。两轴互相垂直，齿是交叉相拨的圆木销（本站设定）。',
       provenance: 'calc',
       active: stageActive.mesh1,
@@ -102,7 +100,7 @@ export default defineExhibit<CarState, CarControls>({
     {
       id: 'mesh3',
       title: '小平轮 10 齿 → 上平轮 100 齿',
-      parts: ['xiao-ping', 'shang-ping'],
+      parts: ['xiao-ping', 'shang-ping#pins'],
       text: '10 : 100，中平轮转 10 周（十里），上平轮转 1 周。中平轮停着时它们也停着，所以此环与「一拨一停」同时点亮。',
       provenance: 'calc',
       active: stageActive.mesh3,
@@ -164,8 +162,8 @@ export default defineExhibit<CarState, CarControls>({
     },
   ],
   sources,
-  view: { dir: [0.75, 0.45, 1] },
-  section: { normal: [0, 0, -1], offset: -120, label: '沿车身纵向剖开，看下层轮系' },
+  view: { dir: [0.8, 0.42, -1], target: [-150, 1250, 0] },
+  section: { normal: [0, -1, 0], offset: -1440, label: '水平剖开、揭去台板，从上方看轮系' },
   audit: {
     phases: 61,
     contacts: [

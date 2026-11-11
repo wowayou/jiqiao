@@ -35,6 +35,9 @@ import {
 
 // —— 车箱外形（本站设定） ——
 export const BOX = { x0: -1080, x1: 700, z: 940, post: 30 } as const
+/** 一层、二层台板中间的开口（本站设定：为了从上方看见轮系） */
+const DECK1_OPEN = { x0: -950, x1: 480, z0: -690, z1: 400 } as const
+const DECK2_OPEN = { x0: -950, x1: 480, z0: -650, z1: 700 } as const
 const UP: Vec3 = [0, 1, 0]
 
 /** 竖直圆柱：底面中心 (x, y0, z)，高到 y1 */
@@ -293,8 +296,12 @@ const deck1 = (k: Kernel) => {
   const [d0, d1] = H.deck1
   const lo = STRIKER_GEO.lower
   const up = STRIKER_GEO.upper
+  // 台板中间开一个大口，好从上面看见轮系；两道梁跨过开口，吊住中平轮轴、上平轮轴的轴座
   const slab = k
     .boxFromTo([BOX.x0, d0, -BOX.z], [BOX.x1, d1, BOX.z])
+    .subtract(k.boxFromTo([DECK1_OPEN.x0, d0 - 1, DECK1_OPEN.z0], [DECK1_OPEN.x1, d1 + 1, DECK1_OPEN.z1]))
+    .add(k.boxFromTo([BOX.x0, d0, O2_XZ[1] - 35], [BOX.x1, d1, O2_XZ[1] + 35]))
+    .add(k.boxFromTo([BOX.x0, d0, O3_XZ[1] - 35], [BOX.x1, d1, O3_XZ[1] + 35]))
     .subtract(vcyl(k, lo.rod, d0 - 1, d1 + 1, ARM.rodR + 1.5, 32))
     .subtract(vcyl(k, up.rod, d0 - 1, d1 + 1, ARM.rodR + 1.5, 32))
   const blockZ = vcyl(k, O2_XZ, 1420, d0 + 1, 45).subtract(vcyl(k, O2_XZ, 1418, 1458, 25.5))
@@ -309,7 +316,12 @@ const frameUpper = (k: Kernel) => {
   const [d0, d1] = H.deck2
   const parts: Solid[] = []
   for (const x of POST_X) for (const z of [-POST_Z, POST_Z]) parts.push(postAt(k, x, z, H.deck1[1], d0))
-  parts.push(k.boxFromTo([BOX.x0, d0, -BOX.z], [BOX.x1, d1, BOX.z]).subtract(vcyl(k, STRIKER_GEO.upper.rod, d0 - 1, d1 + 1, ARM.rodR + 1.5, 32)))
+  parts.push(
+    k
+      .boxFromTo([BOX.x0, d0, -BOX.z], [BOX.x1, d1, BOX.z])
+      .subtract(k.boxFromTo([DECK2_OPEN.x0, d0 - 1, DECK2_OPEN.z0], [DECK2_OPEN.x1, d1 + 1, DECK2_OPEN.z1]))
+      .subtract(vcyl(k, STRIKER_GEO.upper.rod, d0 - 1, d1 + 1, ARM.rodR + 1.5, 32)),
+  )
   parts.push(railing(k, d1, 40, 150))
   return k.union(parts)
 }
@@ -397,6 +409,9 @@ export const parts: P[] = [
     rest: liPose({ ang: { wheel: Math.PI / 2 } } as CarState),
     pose: liPose,
     explode: { dir: [0, 0, 1], distance: 330, order: 3, with: 'wheel-left' },
+    features: [
+      { id: 'pegs', name: '立轮木销', role: '沿半径插在轮辋上的圆木销；转到顶上时伸进下平轮的冠销之间。', anchor: [GEAR.li.pegOut, 0, 0] },
+    ],
   },
   {
     ...T('guan-xin-zhou'),
@@ -405,7 +420,7 @@ export const parts: P[] = [
     solid: (k) => vcyl(k, [0, 0], H.floor[1] + 0.3, H.guanTop, 30),
     rest: { p: [S_XZ[0], 0, S_XZ[1]] },
     pose: xiaPose,
-    explode: { dir: UP, distance: 420, order: 4 },
+    explode: { dir: UP, distance: 300, order: 4 },
   },
   {
     ...T('xia-ping'),
@@ -415,6 +430,9 @@ export const parts: P[] = [
     rest: { p: [S_XZ[0], 0, S_XZ[1]] },
     pose: xiaPose,
     explode: { dir: UP, distance: 0, order: 4, with: 'guan-xin-zhou' },
+    features: [
+      { id: 'pins', name: '下平轮冠销', role: '从轮辋向下垂的木销，被立轮顶上的木销拨着走。', anchor: [0, H.xiaPinBottom, R.xia] },
+    ],
   },
   {
     ...T('xuan-feng'),
@@ -460,9 +478,9 @@ export const parts: P[] = [
     solid: zhongPing,
     rest: { p: [O2_XZ[0], 0, O2_XZ[1]] },
     pose: zhongPose,
-    explode: { dir: UP, distance: 800, order: 6 },
+    explode: { dir: UP, distance: 600, order: 6 },
     features: [
-      { id: 'pins', name: '冠销（100 根）', role: '从轮辋向下垂的木销，被旋风轮的拨齿一根根拨过。', anchor: [-R.zhong, H.zhongPinBottom, 0] },
+      { id: 'pins', name: '中平轮冠销', role: '从轮辋向下垂的 100 根木销，被旋风轮的拨齿一根根拨过。', anchor: [-R.zhong, H.zhongPinBottom, 0] },
     ],
   },
   {
@@ -482,6 +500,9 @@ export const parts: P[] = [
     rest: { p: [O2_XZ[0], 0, O2_XZ[1]] },
     pose: zhongPose,
     explode: { dir: UP, distance: 180, order: 7, with: 'zhong-ping' },
+    features: [
+      { id: 'pins', name: '小平轮立销', role: '立在小盘边上的木销，拨上平轮垂下的冠销。', anchor: [R.xiao, H.xiaoPinTop, 0] },
+    ],
   },
   {
     ...T('shang-ping'),
@@ -490,7 +511,10 @@ export const parts: P[] = [
     solid: shangPing,
     rest: { p: [O3_XZ[0], 0, O3_XZ[1]] },
     pose: shangPose,
-    explode: { dir: UP, distance: 1350, order: 8 },
+    explode: { dir: UP, distance: 900, order: 8 },
+    features: [
+      { id: 'pins', name: '上平轮冠销', role: '从轮辋向下垂的 100 根木销，被小平轮的木销拨着走。', anchor: [R.shang, H.shangPinBottom, 0] },
+    ],
   },
   {
     ...T('shang-zhou'),
@@ -516,7 +540,7 @@ export const parts: P[] = [
     material: 'wood-dark',
     solid: deck1,
     rest: { p: [0, 0, 0] },
-    explode: { dir: UP, distance: 2000, order: 10 },
+    explode: { dir: UP, distance: 1050, order: 10 },
   },
   {
     ...T('ti-gan-xia'),
@@ -575,7 +599,7 @@ export const parts: P[] = [
     material: 'wood-dark',
     solid: frameUpper,
     rest: { p: [0, 0, 0] },
-    explode: { dir: UP, distance: 2600, order: 12 },
+    explode: { dir: UP, distance: 550, order: 12, with: 'deck-1' },
   },
   {
     ...T('zhuo'),

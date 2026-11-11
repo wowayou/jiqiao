@@ -439,9 +439,9 @@ export const armPose = (id: 'lower' | 'upper') => (s: CarState): Pose => {
   return { p: g.pivot, q: quatMul(rotY(g.heading), rotZ(s[id].arm)) }
 }
 
-/** 地面刻线：每半步一道（足轮转 1/6 周的真实滚动距离），共 MARKS 道在 ±2 道距之间循环 */
+/** 地面刻线：每半步一道（足轮转 1/6 周的真实滚动距离），共 MARKS 道在 ±1.5 道距之间循环 */
 export const MARK_SPACING = (TAU * R.wheel) / 6
-export const MARKS = 4
+export const MARKS = 3
 export const markX = (s: CarState, i: number) => {
   const span = MARKS * MARK_SPACING
   const x = -span / 2 + i * MARK_SPACING - s.ground
