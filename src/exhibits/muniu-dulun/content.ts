@@ -31,11 +31,6 @@ export const sources: Record<string, SourceRef> = {
     file: SHI,
     quote: '疑亮之創始作之於江州縣當時云然故後人以為名也',
   },
-  daozu: {
-    title: '宋 高承《事物紀原》卷八「小車」条：为何造木牛流马',
-    file: SHI,
-    quote: '蓋巴蜀道阻便於登陟故耳',
-  },
   yun: {
     title: '裴松之注引《亮集》「作木牛流馬法」：载量与行程',
     file: LIU,
@@ -46,25 +41,10 @@ export const sources: Record<string, SourceRef> = {
     file: LIU,
     quote: '牛仰雙轅，人行六尺，牛行四步',
   },
-  jiao: {
-    title: '裴松之注引《亮集》「作木牛流馬法」：一脚四足',
-    file: LIU,
-    quote: '一腳四足',
-  },
   nan1: {
     title: '裴松之注引《亮集》：尺寸之数里难解的句子之一',
     file: LIU,
     quote: '後杠與等版方囊二枚',
-  },
-  nan2: {
-    title: '裴松之注引《亮集》：尺寸之数里难解的句子之二',
-    file: LIU,
-    quote: '形制如象',
-  },
-  qiyi: {
-    title: '陈寿《三国志·诸葛亮传》传末评语',
-    file: LIU,
-    quote: '木牛流馬，皆出其意',
   },
 }
 

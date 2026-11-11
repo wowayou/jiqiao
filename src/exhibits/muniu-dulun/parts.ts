@@ -124,7 +124,7 @@ const sackSolid = (k: Kernel): Solid =>
     .scale([SACK.a, SACK.b, SACK.c])
     .intersect(k.boxFromTo([-400, -SACK.base, -400], [400, 400, 400]))
 
-const groundSolid = (k: Kernel): Solid => k.boxFromTo([-GROUND_HALF, -80, -600], [GROUND_HALF, 0, 600])
+const groundSolid = (k: Kernel): Solid => k.boxFromTo([-GROUND_HALF, -80, -520], [GROUND_HALF, 0, 520])
 
 /** 地面标记：一道横在路上的石条，左右各一段（中间让开车轮与支脚）。 */
 function markSolid(k: Kernel): Solid {
@@ -134,8 +134,8 @@ function markSolid(k: Kernel): Solid {
 
 /** 人手施力点：竖直向上的小箭头，局部原点在箭头尖。 */
 function arrowSolid(k: Kernel): Solid {
-  const shaft = k.cylinder({ r: 9, h: 70, axis: 'y', center: false, segments: 24 }).translate([0, -110, 0])
-  const head = k.cylinder({ r: 24, r2: 0, h: 40, axis: 'y', center: false, segments: 24 }).translate([0, -40, 0])
+  const shaft = k.cylinder({ r: 12, h: 90, axis: 'y', center: false, segments: 24 }).translate([0, -140, 0])
+  const head = k.cylinder({ r: 34, r2: 0, h: 50, axis: 'y', center: false, segments: 24 }).translate([0, -50, 0])
   return shaft.add(head)
 }
 
@@ -155,7 +155,7 @@ export const parts: PartDef<DulunState>[] = [
     material: 'earth',
     solid: groundSolid,
     rest: { p: [0, 0, 0] },
-    explode: { dir: [0, -1, 0], distance: 520, order: 1 },
+    explode: { dir: [0, -1, 0], distance: 400, order: 1 },
     ...T.ground,
   },
   {

@@ -51,7 +51,7 @@ export default defineExhibit<DulunState, DulunControls>({
     {
       id: 'legs',
       title: '停下时支脚落地',
-      parts: ['legs', 'ground'],
+      parts: ['legs'],
       text: CHAIN_TEXT.legs,
       provenance: 'model',
       active: (s) => s.legKg > 0.05 || s.stage === 'lower',
