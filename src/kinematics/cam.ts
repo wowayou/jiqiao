@@ -53,8 +53,10 @@ export function rockerLocal(g: RockerGeom, phi: number, world: Vec2): Vec2 {
 export interface RockerContact {
   /** 摇杆转角 φ */
   phi: number
-  /** 接触点在受压面上的局部 x（离支点多远，负值 = 在碓尾一侧） */
+  /** 圆头圆心在摇杆局部坐标里的 x（负值 = 在碓尾一侧）；face 时即接触点离支点的距离 */
   x: number
+  /** face：圆头压在受压面上；corner：圆头滑过末端后，顶着受压面末端的棱角（棱角在受压面末端 (tailMin, face)） */
+  kind: 'face' | 'corner'
 }
 
 /**
@@ -81,9 +83,37 @@ export function contactAngle(g: RockerGeom, alpha: number): RockerContact | null
     if (Math.abs(phi) > maxPhi) continue
     const x = dx * Math.cos(phi) + dy * Math.sin(phi)
     if (x < g.tailMin || x > g.tailMax) continue
-    if (!best || Math.abs(phi) < Math.abs(best.phi)) best = { phi, x }
+    if (!best || Math.abs(phi) < Math.abs(best.phi)) best = { phi, x, kind: 'face' }
   }
-  return best
+  return best ?? cornerContact(g, dx, dy)
+}
+
+/**
+ * 圆头滑过受压面末端之后，还会顶着末端的棱角 K = (tailMin, face) 走一小段，直到彻底脱开。
+ * 棱角随摇杆绕支点转，轨迹是以 |K| 为半径的圆；圆头与棱角相切 = 棱角轨迹圆与圆头圆（半径 noseR）相交。
+ * 两个交点里取棱角位置较低的（棱角在圆头下方）；圆头圆心须已越过末端（局部 x < tailMin），否则由受压面负责。
+ */
+function cornerContact(g: RockerGeom, dx: number, dy: number): RockerContact | null {
+  const kx = g.tailMin
+  const ky = g.face
+  const rc = Math.hypot(kx, ky)
+  const d = Math.hypot(dx, dy)
+  if (d < 1e-9 || d > rc + g.noseR || d < Math.abs(rc - g.noseR)) return null
+  // 以支点为原点：棱角圆 (0, rc)，圆头圆 (C, noseR)
+  const a = (rc * rc - g.noseR * g.noseR + d * d) / (2 * d)
+  const h = Math.sqrt(Math.max(0, rc * rc - a * a))
+  const ex = dx / d
+  const ey = dy / d
+  let best: Vec2 | null = null
+  for (const sg of [1, -1]) {
+    const w: Vec2 = [a * ex - sg * h * ey, a * ey + sg * h * ex]
+    if (!best || w[1] < best[1]) best = w
+  }
+  const phi = wrapPi(Math.atan2(best![1], best![0]) - Math.atan2(ky, kx))
+  if (Math.abs(phi) > (g.maxPhi ?? 1.2)) return null
+  const x = dx * Math.cos(phi) + dy * Math.sin(phi)
+  if (x >= g.tailMin) return null
+  return { phi, x, kind: 'corner' }
 }
 
 export interface RockerCycleOpts {
@@ -100,12 +130,13 @@ export interface RockerCycleOpts {
 export type RockerStage = 'rest' | 'push' | 'fall'
 
 export interface RockerState {
+  /** push：拨板正把碓尾往下压（碓头在抬起）；fall：拨板已转过最低处、碓头回落（可能还被拨板的背面托着）；rest：静止 */
   stage: RockerStage
   /** 摇杆转角 φ */
   phi: number
   /** 摇杆角速度 dφ/dt（rad/s） */
   dphi: number
-  /** 压着时的接触点局部 x；其余阶段为 null */
+  /** 圆头还顶着摇杆时：接触点局部 x（顶着棱角时为 tailMin）；否则 null */
   contactX: number | null
   /** 静止阶段：落到位之后过了多少秒；其余阶段为 null */
   sinceLanding: number | null
@@ -116,27 +147,29 @@ export interface RockerCycle {
   readonly opts: Required<RockerCycleOpts>
   /** 开始压下时的拨板方向角（圆头刚好碰到静止的受压面） */
   alphaIn: number
-  /** 脱开时的拨板方向角（圆头滑过受压面末端） */
-  alphaOut: number
-  /** 从 alphaIn 到 alphaOut 轴转过的角度（rad，沿转向） */
+  /** 摇杆被压到最低（碓头抬到最高）时的拨板方向角 */
+  alphaPeak: number
+  /** 圆头与摇杆彻底脱开时的拨板方向角 */
+  alphaEnd: number
+  /** alphaIn → alphaPeak、alphaIn → alphaEnd 轴转过的角度（rad，沿转向） */
   pushAngle: number
-  /** 脱开瞬间的摇杆角与角速度 */
-  phiOut: number
-  dphiOut: number
+  contactSpan: number
   /** 摇杆被抬到的最高角度 */
   phiPeak: number
-  /** 脱开后到落回静止位置的时间（s） */
+  /** 从最高点到落回静止的时间（s） */
   fallTime: number
-  /** 从开始压下到完全落回静止，轴转过的角度（rad）。下一块拨板须在此之后才到。 */
+  /** 从开始压下到完全落定，轴转过的角度（rad）。下一块拨板须在此之后才到。 */
   settleAngle: number
   /** 拨板方向角 → 摇杆状态 */
   at(alpha: number): RockerState
 }
 
 /**
- * 建立一个摇杆的完整周期：数值定位「开始压下」与「脱开」两个转角，其余全是解析式。
- * 压着的阶段摇杆角等于 contactAngle（拨板与碓尾贴合）；脱开后按匀角加速度下落并在 restPhi 停住。
- * 返回的 at(alpha) 只依赖 alpha，所以对同一根摇杆上的多块拨板各取各的 alpha 即可。
+ * 建立一个摇杆的完整周期：数值定位「开始压下」「最高点」「脱开」三个转角，其余全是解析式。
+ *  1. 压下（push）：摇杆角 = contactAngle（拨板与碓尾贴合），到摇杆被压到最低为止；
+ *  2. 回落（fall）：从最高点起按匀角加速度下落 φ(τ) = φpeak − ½·accel·τ²，落到 restPhi 即停；
+ *     只要圆头还顶着摇杆（接触解仍存在），摇杆就不能落到圆头下面：φ = max(自由下落, 接触解)。
+ * 返回的 at(alpha) 只依赖 alpha，所以同一根摇杆上的多块拨板各取各的 alpha 即可。
  */
 export function makeRockerCycle(geom: RockerGeom, o: RockerCycleOpts): RockerCycle {
   const opts: Required<RockerCycleOpts> = { restPhi: 0, ...o }
@@ -147,9 +180,9 @@ export function makeRockerCycle(geom: RockerGeom, o: RockerCycleOpts): RockerCyc
     const c = contactAngle(geom, a)
     return c !== null && c.phi >= restPhi
   }
-  // 沿转向扫一整圈，找「未压 → 压着」的边界
+  // 沿转向扫一整圈，找「未压 → 压着 → 脱开」的边界
   const N = 7200
-  const alphaAt = (i: number) => dir * (i * TAU) / N
+  const alphaAt = (i: number) => (dir * (i * TAU)) / N
   let start = -1
   for (let i = 0; i < N; i++) {
     if (!engaged(alphaAt(i)) && engaged(alphaAt(i + 1))) {
@@ -167,7 +200,6 @@ export function makeRockerCycle(geom: RockerGeom, o: RockerCycleOpts): RockerCyc
   }
   if (end < 0) throw new Error('拨板压上摇杆后一直不脱开：检查几何')
   const bisect = (lo: number, hi: number, wantEngagedAtHi: boolean) => {
-    // lo、hi 为角度；在 [lo, hi] 内找 engaged 状态翻转的位置
     let a = lo
     let b = hi
     for (let k = 0; k < 60; k++) {
@@ -178,54 +210,76 @@ export function makeRockerCycle(geom: RockerGeom, o: RockerCycleOpts): RockerCyc
     return (a + b) / 2
   }
   const alphaIn = bisect(alphaAt(start), alphaAt(start + 1), true)
-  const alphaOut = bisect(alphaAt(end), alphaAt(end + 1), false)
-  const pushAngle = wrapAngle(dir * (alphaOut - alphaIn))
+  const alphaEnd = bisect(alphaAt(end), alphaAt(end + 1), false)
+  const span = wrapAngle(dir * (alphaEnd - alphaIn))
+  const phiC = (u: number) => contactAngle(geom, alphaIn + dir * u)?.phi ?? -Infinity
 
-  // 脱开瞬间的摇杆角速度：对 φ(α) 取向后差分
+  // 压下最低点（摇杆角最大处）：先粗扫再黄金分割
+  const M = 4000
+  let iBest = 0
+  for (let i = 0; i <= M; i++) if (phiC((span * i) / M) > phiC((span * iBest) / M)) iBest = i
+  let lo = (span * Math.max(0, iBest - 1)) / M
+  let hi = (span * Math.min(M, iBest + 1)) / M
+  const gr = (Math.sqrt(5) - 1) / 2
+  for (let k = 0; k < 60; k++) {
+    const m1 = hi - gr * (hi - lo)
+    const m2 = lo + gr * (hi - lo)
+    if (phiC(m1) > phiC(m2)) hi = m2
+    else lo = m1
+  }
+  const pushAngle = (lo + hi) / 2
+  const alphaPeak = alphaIn + dir * pushAngle
+  const phiPeak = phiC(pushAngle)
+  const fallTime = Math.sqrt((2 * (phiPeak - restPhi)) / accel)
+
+  // 圆头与摇杆彻底脱开（接触解消失）那一刻的状态：位置取「自由下落」与「被圆头托着」两者中较高的，
+  // 角速度取同一时刻自由下落的速度（圆头擦着棱角滑走时接触解的变化率趋于无穷，不能直接拿来当速度）。
+  const freeFall = (tau: number) => phiPeak - 0.5 * accel * tau * tau
+  const tauEnd = (span - pushAngle) / omega
+  const phiEnd = Math.max(freeFall(tauEnd), phiC(span - 1e-7), restPhi)
+  const v0 = accel * tauEnd
+  const tauLand = (-v0 + Math.sqrt(v0 * v0 + 2 * accel * (phiEnd - restPhi))) / accel
+  const settleAngle = Math.max(pushAngle + fallTime * omega, span + tauLand * omega)
+
   const eps = 1e-6
-  const phiAt = (a: number) => contactAngle(geom, a)!.phi
-  const aOut = alphaOut - dir * eps * 0.5
-  const phiOut = phiAt(aOut)
-  const dphiDalpha = (phiAt(aOut) - phiAt(aOut - dir * eps)) / (dir * eps)
-  const dphiOut = dphiDalpha * dir * omega
-
-  // 脱开后：φ(τ) = φOut + dφOut·τ − ½·accel·τ²，落到 restPhi 即停
-  const disc = dphiOut * dphiOut + 2 * accel * (phiOut - restPhi)
-  const fallTime = (dphiOut + Math.sqrt(Math.max(0, disc))) / accel
-  const tPeak = Math.max(0, dphiOut / accel)
-  let phiPeak = phiOut + dphiOut * tPeak - 0.5 * accel * tPeak * tPeak
-  for (let i = 0; i <= 400; i++) {
-    const c = contactAngle(geom, alphaIn + (dir * pushAngle * i) / 400)
-    if (c && c.phi > phiPeak) phiPeak = c.phi
-  }
-  const settleAngle = pushAngle + fallTime * omega
-
-  // 压着的整段里接触解必须连续（不能在两个根之间跳来跳去）
-  for (let i = 1; i <= 400; i++) {
-    const c0 = contactAngle(geom, alphaIn + (dir * pushAngle * (i - 1)) / 400)
-    const c1 = contactAngle(geom, alphaIn + (dir * pushAngle * i) / 400)
-    if (c0 && c1 && Math.abs(c1.phi - c0.phi) > 0.05) throw new Error('接触解不连续：摇杆几何有多个分支，检查尺寸')
-  }
-
   const at = (alpha: number): RockerState => {
     const u = wrapAngle(dir * (alpha - alphaIn))
-    if (u < pushAngle) {
-      const c = contactAngle(geom, alpha)
-      if (c) {
-        const a1 = alpha - dir * eps
-        const c1 = contactAngle(geom, a1)
-        const d = c1 ? ((c.phi - c1.phi) / (dir * eps)) * dir * omega : 0
-        return { stage: 'push', phi: Math.max(c.phi, restPhi), dphi: d, contactX: c.x, sinceLanding: null }
+    const contact = u < span ? contactAngle(geom, alpha) : null
+    const dContact = (): number => {
+      const c1 = contactAngle(geom, alpha - dir * eps)
+      return contact && c1 ? ((contact.phi - c1.phi) / (dir * eps)) * dir * omega : 0
+    }
+    const cx = contact ? (contact.kind === 'face' ? contact.x : geom.tailMin) : null
+    if (u < pushAngle && contact) {
+      return { stage: 'push', phi: Math.max(contact.phi, restPhi), dphi: dContact(), contactX: cx, sinceLanding: null }
+    }
+    if (u < span) {
+      const tau = (u - pushAngle) / omega
+      const free = freeFall(tau)
+      const held = contact !== null && contact.phi > free
+      return {
+        stage: 'fall',
+        phi: Math.max(free, held ? contact!.phi : -Infinity, restPhi),
+        dphi: held ? dContact() : -accel * tau,
+        contactX: held ? cx : null,
+        sinceLanding: null,
       }
     }
-    const tau = (u - pushAngle) / omega
-    if (u >= pushAngle && tau < fallTime) {
-      const phi = phiOut + dphiOut * tau - 0.5 * accel * tau * tau
-      return { stage: 'fall', phi: Math.max(phi, restPhi), dphi: dphiOut - accel * tau, contactX: null, sinceLanding: null }
+    const tp = (u - span) / omega
+    if (tp < tauLand) {
+      return { stage: 'fall', phi: Math.max(phiEnd - v0 * tp - 0.5 * accel * tp * tp, restPhi), dphi: -v0 - accel * tp, contactX: null, sinceLanding: null }
     }
-    return { stage: 'rest', phi: restPhi, dphi: 0, contactX: null, sinceLanding: Math.max(0, tau - fallTime) }
+    return { stage: 'rest', phi: restPhi, dphi: 0, contactX: null, sinceLanding: tp - tauLand }
   }
-  return { geom, opts, alphaIn, alphaOut, pushAngle, phiOut, dphiOut, phiPeak, fallTime, settleAngle, at }
+
+  // 全周期摇杆角必须连续（脱开处不能跳；也排除接触解在两个根之间跳来跳去）
+  let prev = at(alphaIn - dir * 1e-3).phi
+  for (let i = 0; i <= 20000; i++) {
+    const phi = at(alphaIn + (dir * i * TAU) / 20000).phi
+    if (Math.abs(phi - prev) > 0.02) throw new Error(`摇杆角不连续（相邻 0.018° 跳变 ${(phi - prev).toFixed(3)} rad）：检查尺寸`)
+    prev = phi
+  }
+  return { geom, opts, alphaIn, alphaPeak, alphaEnd, pushAngle, contactSpan: span, phiPeak, fallTime, settleAngle, at }
 }
 
 /**

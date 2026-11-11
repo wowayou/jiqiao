@@ -44,7 +44,7 @@ describe('contactAngle：圆头与受压面相切（解析解）', () => {
     for (let i = 0; i < 3600; i++) {
       const a = (i / 3600) * TAU
       const c = contactAngle(G, a)
-      if (!c) continue
+      if (!c || c.kind !== 'face') continue
       n++
       const l = rockerLocal(G, c.phi, nosePosition(G, a))
       expect(l[1] - G.face).toBeCloseTo(G.noseR, 9)
@@ -54,20 +54,38 @@ describe('contactAngle：圆头与受压面相切（解析解）', () => {
     }
     expect(n).toBeGreaterThan(100)
   })
+  test('越过受压面末端后顶着棱角：圆心到棱角的距离恒等于圆头半径，且 φ 与面接触解连续', () => {
+    let n = 0
+    for (let i = 0; i < 7200; i++) {
+      const a = -(i / 7200) * TAU
+      const c = contactAngle(G, a)
+      if (!c || c.kind !== 'corner') continue
+      n++
+      const corner = rockerPoint(G, c.phi, [G.tailMin, G.face])
+      const nose = nosePosition(G, a)
+      expect(Math.hypot(corner[0] - nose[0], corner[1] - nose[1])).toBeCloseTo(G.noseR, 9)
+      expect(c.x).toBeLessThan(G.tailMin)
+    }
+    expect(n).toBeGreaterThan(5)
+  })
   test('够不着时返回 null', () => {
     expect(contactAngle({ ...G, orbit: 10 }, 0)).toBeNull()
   })
 })
 
-describe('makeRockerCycle：压下 → 脱开 → 下落 → 静止', () => {
+describe('makeRockerCycle：压下 → 最高点 → 回落 → 静止', () => {
   const c = makeRockerCycle(G, OPTS)
-  test('开始压下时摇杆角为 0（圆头刚好碰到静止的受压面）；压下阶段 φ 先升后到最高', () => {
+  test('开始压下时摇杆角为 0（圆头刚好碰到静止的受压面）；最高点比任何压着时刻都高不了', () => {
     expect(contactAngle(G, c.alphaIn)!.phi).toBeCloseTo(0, 6)
     expect(c.pushAngle).toBeGreaterThan(deg(10))
     expect(c.phiPeak).toBeGreaterThan(0.15)
     expect(c.phiPeak).toBeLessThan(0.6)
+    for (let i = 0; i <= 2000; i++) {
+      const k = contactAngle(G, c.alphaIn + (OPTS.dir * c.contactSpan * i) / 2000)
+      if (k) expect(k.phi).toBeLessThanOrEqual(c.phiPeak + 1e-9)
+    }
   })
-  test('压着的整个阶段，摇杆角 = 接触解（拨板与碓尾始终相切）', () => {
+  test('压下阶段摇杆角 = 接触解（拨板与碓尾始终相切），且在上升', () => {
     for (let i = 1; i < 200; i++) {
       const a = c.alphaIn + (OPTS.dir * c.pushAngle * i) / 200
       const s = c.at(a)
@@ -75,40 +93,43 @@ describe('makeRockerCycle：压下 → 脱开 → 下落 → 静止', () => {
       expect(s.phi).toBeCloseTo(contactAngle(G, a)!.phi, 12)
       const l = rockerLocal(G, s.phi, nosePosition(G, a))
       expect(Math.abs(l[1] - G.face - G.noseR)).toBeLessThan(1e-9)
+      expect(s.dphi).toBeGreaterThan(-1e-6)
     }
   })
-  test('脱开处位置与速度连续', () => {
+  test('最高点处位置连续、速度从上升转为下降', () => {
     const e = 1e-7
-    const before = c.at(c.alphaOut - OPTS.dir * e)
-    const after = c.at(c.alphaOut + OPTS.dir * e)
+    const before = c.at(c.alphaPeak - OPTS.dir * e)
+    const after = c.at(c.alphaPeak + OPTS.dir * e)
     expect(before.stage).toBe('push')
     expect(after.stage).toBe('fall')
     expect(Math.abs(after.phi - before.phi)).toBeLessThan(1e-5)
-    expect(Math.abs(after.dphi - before.dphi)).toBeLessThan(1e-3)
+    expect(after.dphi).toBeLessThanOrEqual(1e-3)
   })
-  test('脱开后按匀角加速度下落，落到静止角即停；落地时间与解析式一致', () => {
-    // φ(τ) = φOut + dφOut·τ − ½·a·τ²
-    const tau = c.fallTime / 2
-    const alpha = c.alphaOut + OPTS.dir * OPTS.omega * tau
-    const s = c.at(alpha)
-    expect(s.stage).toBe('fall')
-    expect(s.phi).toBeCloseTo(c.phiOut + c.dphiOut * tau - 0.5 * OPTS.accel * tau * tau, 9)
-    const landed = c.at(c.alphaOut + OPTS.dir * OPTS.omega * (c.fallTime + 0.001))
+  test('脱开圆头之后按匀角加速度下落：二阶差分 = −accel·h²；落到静止角即停', () => {
+    const h = 0.003 // s
+    const at = (tp: number) => c.at(c.alphaIn + OPTS.dir * (c.contactSpan + OPTS.omega * tp)).phi
+    let checked = 0
+    for (let tp = 0.01; tp < 0.3; tp += 0.01) {
+      if (at(tp + h) <= 0) break
+      expect(at(tp + h) - 2 * at(tp) + at(tp - h)).toBeCloseTo(-OPTS.accel * h * h, 9)
+      checked++
+    }
+    expect(checked).toBeGreaterThan(2)
+    expect(c.fallTime).toBeCloseTo(Math.sqrt((2 * c.phiPeak) / OPTS.accel), 12)
+    const landed = c.at(c.alphaIn + OPTS.dir * (c.settleAngle + 0.01))
     expect(landed.stage).toBe('rest')
     expect(landed.phi).toBe(0)
-    // 落地瞬间 φ 到 0
-    const justBefore = c.at(c.alphaOut + OPTS.dir * OPTS.omega * (c.fallTime - 1e-6))
-    expect(justBefore.phi).toBeLessThan(1e-4)
+    expect(landed.sinceLanding).toBeGreaterThan(0)
+    const before = c.at(c.alphaIn + OPTS.dir * (c.settleAngle - 0.01))
+    expect(before.stage).toBe('fall')
   })
-  test('摇杆角全程不低于静止角；下落时不穿到拨板下面', () => {
+  test('摇杆角全程不低于静止角；只要圆头还顶着摇杆，摇杆就不落到圆头下面', () => {
     for (let i = 0; i < 7200; i++) {
       const a = (i / 7200) * TAU
       const s = c.at(a)
       expect(s.phi).toBeGreaterThanOrEqual(0)
-      if (s.stage === 'fall') {
-        const k = contactAngle(G, a)
-        if (k) expect(s.phi).toBeGreaterThanOrEqual(k.phi - 1e-9)
-      }
+      const k = contactAngle(G, a)
+      if (s.stage === 'fall' && k) expect(s.phi).toBeGreaterThanOrEqual(k.phi - 1e-9)
     }
   })
   test('周期闭合：at(α) = at(α + 2π)', () => {
