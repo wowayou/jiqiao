@@ -1,10 +1,10 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { Link } from 'wouter'
-import { getMeta, loadExhibit } from '../exhibit/registry'
+import { getMeta, loadExhibit, relatedMetas } from '../exhibit/registry'
 import type { AnyExhibit } from '../exhibit/types'
 import { StageContext, createStageStore, useStage, useStageActions, type StageStore } from '../stage/store'
 import { SiteHeader, useThemeCtx } from './App'
-import { ChainPanel, IntroPanel, PartsPanel, Readouts, Timeline, Toolbar } from './panels'
+import { ChainPanel, IntroPanel, PartsPanel, HoverTip, Readouts, Timeline, Toolbar, ViewBar } from './panels'
 
 export function ExhibitPage({ id }: { id: string }) {
   const meta = getMeta(id)
@@ -83,6 +83,8 @@ function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
   const error = useStage((s) => s.error)
   const selected = useStage((s) => s.selected)
   const actions = useStageActions()
+  // 相关展品：只列注册表里真有的（指向尚未制作的展品时不显示死链，也不报错）
+  const related = relatedMetas(def.meta)
 
   // 在画面里选中零件时切到「零件」页
   useEffect(() => {
@@ -99,9 +101,12 @@ function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
       if (e.key === 'Escape') {
         actions.select(null)
         actions.pinStep(null)
+        actions.clearFade()
         return
       }
-      if (typing || tag === 'BUTTON') return
+      if (typing) return
+      // 点过按钮后焦点还在按钮上：空格/方向键留给按钮与标签页自己，其余快捷键照常
+      if (tag === 'BUTTON' && (e.key === ' ' || e.key.startsWith('Arrow'))) return
       const st = store.getState()
       if (e.key === ' ') {
         e.preventDefault()
@@ -110,6 +115,12 @@ function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
       else if (e.key === 'ArrowRight') actions.step(1, e.shiftKey)
       else if (e.key === 'e' || e.key === 'E') actions.setExplode(st.explode > 0.5 ? 0 : 1)
       else if (e.key === 's' || e.key === 'S') actions.setSection({ on: !st.section.on })
+      else if (e.key === 'f' || e.key === 'F') actions.focusPart()
+      else if (e.key === 'r' || e.key === 'R') actions.applyView('all')
+      else if (/^[1-9]$/.test(e.key)) {
+        const v = st.def.views?.[Number(e.key) - 1]
+        if (v) actions.applyView(v.id)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -117,9 +128,19 @@ function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
 
   return (
     <div className="exhibit" data-exhibit={def.meta.id}>
-      {def.meta.hypothesis && (
-        <div className="hypo-banner" role="note">
-          复原假说：本展品是对史料的一种解释，不是定论。
+      {(def.meta.hypothesis || related.length > 0) && (
+        <div className="hypo-banner" role={def.meta.hypothesis ? 'note' : undefined}>
+          {def.meta.hypothesis && <span>复原假说：本展品是对史料的一种解释，不是定论。</span>}
+          {related.length > 0 && (
+            <nav className="related" aria-label="相关展品">
+              <span>相关展品：</span>
+              {related.map((m) => (
+                <Link key={m.id} href={`/e/${m.id}`} className="related-link" data-related={m.id}>
+                  {m.title}
+                </Link>
+              ))}
+            </nav>
+          )}
         </div>
       )}
       <div className="stage-col">
@@ -128,14 +149,19 @@ function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
             <Stage def={def} theme={resolved} label={`${def.meta.title}的三维模型，可拖动旋转、滚轮缩放`} />
           </Suspense>
           {ready && <Toolbar def={def} />}
+          {ready && <ViewBar def={def} />}
+          {ready && <HoverTip def={def} />}
           {!ready && !error && <div className="stage-status">正在构建几何… {Math.round(progress * 100)}%</div>}
           {error && (
             <div className="stage-status error" role="alert">
               {error}
             </div>
           )}
-          <div className="stage-hint">拖动旋转 · 滚轮缩放 · 右键平移 · 点选零件</div>
         </div>
+        <p className="stage-tip">
+          <span className="tip-fine">拖动旋转 · 滚轮朝指针处缩放 · 双击零件凑近看 · 点「?」看全部操作</span>
+          <span className="tip-touch">单指拖动旋转 · 双指缩放与平移 · 双击零件凑近看 · 点「?」看全部操作</span>
+        </p>
         <Timeline def={def} />
         <Readouts def={def} />
       </div>

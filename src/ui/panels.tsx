@@ -1,10 +1,25 @@
 // 展品页的各个面板。全部只读 store；运动与读数都来自 simulate 的状态快照。
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { splitRef } from '../exhibit/scene'
 import { DOF_LABEL, GROUP_LABEL, PROVENANCE_LABEL, type AnyExhibit, type Dof, type PartGroup, type TimeMoment } from '../exhibit/types'
 import { timelineSpan, useStage, useStageActions } from '../stage/store'
 import { formatTime, mainStep, minorOf, minorPos } from '../stage/timeline'
 import { ClaimItem, ClaimList, ProvTag } from './Provenance'
+
+/** 窄屏上舞台在页面顶部、列表在下面：从列表里点零件/链环后把舞台滚回视野，免得选中了却看不到。 */
+export function revealStage() {
+  try {
+    if (!window.matchMedia('(max-width: 960px)').matches) return
+    const el = document.querySelector('.stage-wrap')
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    if (r.top >= 0 && r.bottom <= window.innerHeight) return
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    el.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' })
+  } catch {
+    /* 无关紧要 */
+  }
+}
 
 // —— 时间轴 ——
 // 主进度条管整个周期；有小循环的展品多一条细调条，只覆盖「当前这个小循环」，单步按钮也按小循环的几分之一走。
@@ -136,8 +151,10 @@ export function Toolbar({ def }: { def: AnyExhibit }) {
   const selected = useStage((s) => s.selected)
   const controls = useStage((s) => s.controls)
   const a = useStageActions()
+  const ref = useInsetRef('top')
+  const [more, setMore] = useState(false)
   return (
-    <div className="stage-overlay">
+    <div className="stage-overlay" ref={ref} data-more={more}>
       <div className="toolgroup">
         <label className="field">
           <span>爆炸</span>
@@ -172,16 +189,19 @@ export function Toolbar({ def }: { def: AnyExhibit }) {
         >
           孤立
         </button>
+        <button type="button" className="btn more-btn" aria-expanded={more} onClick={() => setMore(!more)} data-testid="more-tools">
+          {more ? '收起' : '更多'}
+        </button>
       </div>
       {section.on && (
         <div className="toolgroup" role="group" aria-label="剖切设置">
           <select
             className="select"
             value={section.axis}
-            onChange={(e) => a.setSection({ axis: e.target.value as typeof section.axis, offset: 0 })}
+            onChange={(e) => a.setSection({ axis: e.target.value as typeof section.axis, offset: 0, custom: null })}
             aria-label="剖切平面"
           >
-            <option value="default">{def.section ? '推荐剖面' : 'Z 向剖面'}</option>
+            <option value="default">{section.custom || def.section ? '推荐剖面' : 'Z 向剖面'}</option>
             <option value="x">沿 X 切</option>
             <option value="y">沿 Y 切（水平）</option>
             <option value="z">沿 Z 切</option>
@@ -204,7 +224,7 @@ export function Toolbar({ def }: { def: AnyExhibit }) {
         </div>
       )}
       {def.controls.length > 0 && (
-        <div className="toolgroup">
+        <div className="toolgroup tool-more">
           {def.controls.map((c) =>
             c.kind === 'toggle' ? (
               <label key={c.key} className="field">
@@ -242,7 +262,7 @@ export function Toolbar({ def }: { def: AnyExhibit }) {
           )}
         </div>
       )}
-      <div className="toolgroup" role="group" aria-label="视角">
+      <div className="toolgroup tool-more" role="group" aria-label="视角">
         <button type="button" className="btn btn-icon" onClick={() => a.nudgeView('orbit', -0.3)} aria-label="向左转">
           ⟲
         </button>
@@ -255,10 +275,131 @@ export function Toolbar({ def }: { def: AnyExhibit }) {
         <button type="button" className="btn btn-icon" onClick={() => a.nudgeView('zoom', 1.25)} aria-label="缩小">
           －
         </button>
-        <button type="button" className="btn" onClick={a.resetView} data-testid="reset-view">
-          取景
-        </button>
       </div>
+    </div>
+  )
+}
+
+/** 量出浮层占掉画布的高度，告诉展台：取景时把它算进去，模型不会钻到浮层底下。 */
+function useInsetRef(edge: 'top' | 'bottom') {
+  const ref = useRef<HTMLDivElement>(null)
+  const { setInset } = useStageActions()
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const measure = () => {
+      const parent = el.closest('.stage-wrap') as HTMLElement | null
+      if (!parent) return
+      const r = el.getBoundingClientRect()
+      const pr = parent.getBoundingClientRect()
+      const px = edge === 'top' ? r.bottom - pr.top : pr.bottom - r.top
+      setInset({ [edge]: Math.max(0, Math.ceil(px) + 6) })
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    ro.observe(el.closest('.stage-wrap') as Element)
+    return () => {
+      ro.disconnect()
+      setInset({ [edge]: 0 })
+    }
+  }, [edge, setInset])
+  return ref
+}
+
+// —— 机位条：全景 / 预设机位 / 凑近看，展台左下 ——
+export function ViewBar({ def }: { def: AnyExhibit }) {
+  const active = useStage((s) => s.activeView)
+  const selected = useStage((s) => s.selected)
+  const fade = useStage((s) => s.fadeParts)
+  const a = useStageActions()
+  const ref = useInsetRef('bottom')
+  const views = def.views ?? []
+  const note = views.find((v) => v.id === active)?.note
+  return (
+    <div className="stage-views" role="group" aria-label="机位">
+      {note && <p className="view-note">{note}</p>}
+      <div className="toolgroup" ref={ref}>
+        <button type="button" className="btn" aria-pressed={active === 'all'} onClick={() => a.applyView('all')} data-testid="reset-view" title="回到全景（R）">
+          全景
+        </button>
+        {views.map((v, i) => (
+          <button key={v.id} type="button" className="btn" aria-pressed={active === v.id} onClick={() => a.applyView(v.id)} data-view={v.id} title={`${v.note ?? v.label}（${i + 1}）`}>
+            {v.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          className="btn"
+          disabled={!selected}
+          onClick={() => a.focusPart()}
+          data-testid="focus-part"
+          title={selected ? '镜头凑近选中的零件，并绕它旋转（F，或双击零件）' : '先选中一个零件（点零件，或双击零件直接凑近）'}
+        >
+          凑近看
+        </button>
+        <HelpButton />
+        {fade.length > 0 && (
+          <button type="button" className="btn" onClick={a.clearFade} data-testid="clear-fade" title="把为了看清而变透明的零件恢复">
+            恢复遮挡 ({fade.length})
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** 操作说明：鼠标、触屏、键盘一处列全，免得快捷键「有但没人知道」。 */
+function HelpButton() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button type="button" className="btn btn-icon" aria-expanded={open} aria-controls="help-pop" onClick={() => setOpen(!open)} aria-label="操作说明" title="操作说明（鼠标、触屏、键盘）" data-testid="help">
+        ?
+      </button>
+      {open && (
+        <div className="help-pop" id="help-pop" role="dialog" aria-label="操作说明">
+          <dl>
+            <dt>鼠标</dt>
+            <dd>左键拖动旋转 · 右键拖动平移 · 滚轮朝指针处缩放 · 点零件选中 · 双击零件凑近看 · 点空白取消选中</dd>
+            <dt>触屏</dt>
+            <dd>单指拖动旋转 · 双指张合缩放、双指同向拖动平移 · 双击零件凑近看</dd>
+            <dt>键盘</dt>
+            <dd>
+              <kbd>空格</kbd> 播放/暂停　<kbd>←</kbd>
+              <kbd>→</kbd> 逐步，<kbd>Shift</kbd>+<kbd>←</kbd>
+              <kbd>→</kbd> 整格　<kbd>E</kbd> 爆炸　<kbd>S</kbd> 剖切　<kbd>F</kbd> 凑近看选中的零件　<kbd>R</kbd> 全景　<kbd>1</kbd>–<kbd>9</kbd> 切机位　<kbd>Esc</kbd> 取消选中
+            </dd>
+          </dl>
+        </div>
+      )}
+    </>
+  )
+}
+
+// —— 悬停提示：鼠标停在零件上时就近显示名称 ——
+export function HoverTip({ def }: { def: AnyExhibit }) {
+  const hovered = useStage((s) => s.hovered)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const wrap = ref.current?.parentElement
+    if (!wrap) return
+    const on = (e: PointerEvent) => {
+      const tip = ref.current
+      if (!tip || e.pointerType === 'touch') return
+      const r = wrap.getBoundingClientRect()
+      const w = tip.offsetWidth
+      const x = e.clientX - r.left + 14
+      tip.style.transform = `translate(${x + w > r.width - 8 ? e.clientX - r.left - w - 14 : x}px, ${e.clientY - r.top + 18}px)`
+    }
+    wrap.addEventListener('pointermove', on)
+    return () => wrap.removeEventListener('pointermove', on)
+  }, [])
+  const base = hovered ? splitRef(hovered)[0] : null
+  const part = def.parts.find((p) => p.id === base)
+  return (
+    <div ref={ref} className="hover-tip" hidden={!part} role="tooltip" data-testid="hover-tip">
+      {part?.name}
     </div>
   )
 }
@@ -284,7 +425,7 @@ export function Readouts({ def }: { def: AnyExhibit }) {
 export function ChainPanel({ def }: { def: AnyExhibit }) {
   const active = useStage((s) => s.activeSteps)
   const pinned = useStage((s) => s.pinnedStep)
-  const { pinStep, select } = useStageActions()
+  const { pinStep, select, lookAtStep } = useStageActions()
   const isJoinery = def.meta.category === 'joinery'
   // 榫卯：逐环累计「已锁住」
   const cumulative = useMemo(() => {
@@ -310,7 +451,12 @@ export function ChainPanel({ def }: { def: AnyExhibit }) {
                 aria-pressed={pinned === st.id}
                 onClick={() => {
                   select(null)
-                  pinStep(pinned === st.id ? null : st.id)
+                  const pin = pinned !== st.id
+                  pinStep(pin ? st.id : null)
+                  if (pin) {
+                    lookAtStep(st.id)
+                    revealStage()
+                  }
                 }}
               >
                 <span className="chain-title">
@@ -337,6 +483,21 @@ export function ChainPanel({ def }: { def: AnyExhibit }) {
                   </span>
                 )}
               </button>
+              <button
+                type="button"
+                className="btn chain-look"
+                onClick={() => {
+                  select(null)
+                  pinStep(st.id)
+                  lookAtStep(st.id, true)
+                  revealStage()
+                }}
+                aria-label={`看这里：${st.title}`}
+                title="镜头凑近这一环的零件"
+                data-look={st.id}
+              >
+                看这里
+              </button>
             </li>
           )
         })}
@@ -350,13 +511,14 @@ const GROUP_ORDER: PartGroup[] = ['base', 'structure', 'mechanism', 'control', '
 
 export function PartsPanel({ def }: { def: AnyExhibit }) {
   const selected = useStage((s) => s.selected)
-  const { select, pinStep } = useStageActions()
+  const { select, pinStep, focusPart } = useStageActions()
   const [pid, fid] = selected ? splitRef(selected) : [null, undefined]
   const part = def.parts.find((p) => p.id === pid)
   const feature = part?.features?.find((f) => f.id === fid)
   const choose = (ref: string | null) => {
     pinStep(null)
     select(ref)
+    if (ref) revealStage()
   }
   return (
     <>
@@ -365,6 +527,9 @@ export function PartsPanel({ def }: { def: AnyExhibit }) {
           <h3>{feature ? `${part.name} · ${feature.name}` : part.name}</h3>
           <span className="badge">{GROUP_LABEL[part.group]}</span>
           <p className="role">{feature ? feature.role : part.role}</p>
+          <button type="button" className="btn" onClick={() => (focusPart(part.id), revealStage())} title="镜头凑近这个零件并绕它旋转（F）" data-testid="focus-part-detail">
+            凑近看
+          </button>
           <ClaimList claims={feature ? feature.claims : part.claims} def={def} />
           {!feature && part.features?.length ? (
             <ul className="feature-list" aria-label="零件上的特征">

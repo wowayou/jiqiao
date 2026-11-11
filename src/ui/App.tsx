@@ -9,12 +9,13 @@ const ThemeCtx = createContext<ReturnType<typeof useTheme> | null>(null)
 export const useThemeCtx = () => useContext(ThemeCtx)!
 
 const NEXT: Record<ThemePref, ThemePref> = { auto: 'light', light: 'dark', dark: 'auto' }
-const LABEL: Record<ThemePref, string> = { auto: '主题：跟随系统', light: '主题：浅色', dark: '主题：深色' }
+const LABEL: Record<ThemePref, string> = { auto: '跟随系统', light: '浅色', dark: '深色' }
 
 export function ThemeButton() {
   const { pref, setPref } = useThemeCtx()
   return (
-    <button type="button" className="btn" onClick={() => setPref(NEXT[pref])} title="切换主题">
+    <button type="button" className="btn theme-btn" onClick={() => setPref(NEXT[pref])} title="切换主题（跟随系统 / 浅色 / 深色）" aria-label={`主题：${LABEL[pref]}，点击切换`}>
+      <span className="theme-prefix">主题：</span>
       {LABEL[pref]}
     </button>
   )

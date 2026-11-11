@@ -6,6 +6,9 @@ import { meta } from './meta'
 import { AMPLITUDE, PENDULUM_LENGTH, PENDULUM_PERIOD, PERIOD, simulate, type ClockControls, type ClockState } from './model'
 import { parts } from './parts'
 
+/** 机芯前面挡视线的零件：表盘、前夹板、指针与跨轮——预设机位里让开（半透明） */
+const FRONT_OF_MOVEMENT = ['dial', 'dial-marks', 'front-plate', 'hour-hand', 'minute-hand', 'second-hand', 'cannon', 'minute-wheel', 'hour-wheel']
+
 const pad = (n: number) => String(Math.floor(n)).padStart(2, '0')
 const clockText = (sec: number) => {
   const h = Math.floor(sec / 3600) % 12 || 12
@@ -129,6 +132,26 @@ export default defineExhibit<ClockState, ClockControls>({
   ],
   sources,
   view: { dir: [0.45, 0.75, 1] },
+  views: [
+    {
+      id: 'escapement',
+      label: '擒纵',
+      target: [0, 1100, 0],
+      size: 150,
+      dir: [0.18, 0.22, 1],
+      fade: FRONT_OF_MOVEMENT,
+      note: '表盘、前夹板和指针让开（半透明）：看擒纵叉瓦怎样锁住、放行擒纵轮',
+    },
+    {
+      id: 'train',
+      label: '走时轮系',
+      target: [-25, 995, 0],
+      size: 430,
+      dir: [0.2, 0.25, 1],
+      fade: FRONT_OF_MOVEMENT,
+      note: '表盘、前夹板和指针让开：重锤 → 大轮 → 中心轮 → 三轮 → 擒纵轮',
+    },
+  ],
   section: { normal: [0, 0, -1], offset: -20, label: '过擒纵轮的前后剖面（切掉表盘与前夹板一侧）' },
   audit: {
     phases: 127,

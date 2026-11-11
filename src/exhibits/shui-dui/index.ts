@@ -103,6 +103,28 @@ export default defineExhibit<DuiState, DuiControls>({
   ],
   sources,
   view: { dir: [0.55, 0.7, 1] },
+  views: [
+    {
+      id: 'peg',
+      label: '拨板压碓尾',
+      target: [150, 1000, 640],
+      size: 1000,
+      dir: [0.12, 0.2, 1],
+      // 在碓一与碓二之间切开，揭去碓二、碓三一侧：正对着看碓一的拨板怎样压下碓尾
+      section: { normal: [0, 0, -1], offset: -800, label: '在碓一与碓二之间剖开，揭去碓二、碓三一侧' },
+      fade: ['wheel', 'bearing', 'flume', 'flow', 'stream'],
+      note: '剖开、水轮与水槽让开：正对着看碓一的拨板怎样压下碓尾',
+    },
+    {
+      id: 'strike',
+      label: '碓头砸臼',
+      target: [1200, 520, 640],
+      size: 800,
+      dir: [0.4, 0.3, -1],
+      fade: ['wheel', 'bearing', 'flume', 'flow', 'stream'],
+      note: '水轮、水槽让开：看碓一的碓头落进臼里砸谷粒',
+    },
+  ],
   section: { normal: [0, 0, -1], offset: -1200, label: '剖掉碓三一侧，露出碓二的拨板与碓尾' },
   audit: {
     phases: 120,

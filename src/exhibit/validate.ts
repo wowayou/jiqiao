@@ -61,6 +61,18 @@ export function validateExhibit(def: AnyExhibit, dirName?: string): string[] {
   }
   if (def.chain.length === 0) e('协同链为空')
 
+  const viewIds = new Set<string>(['all'])
+  for (const v of def.views ?? []) {
+    if (viewIds.has(v.id)) e(`机位 id 重复或占用了保留字：${v.id}`)
+    viewIds.add(v.id)
+    if (!(v.size > 0)) e(`机位 ${v.id} 的 size 须为正`)
+    if (v.target.some((x) => !Number.isFinite(x))) e(`机位 ${v.id} 的 target 含非有限值`)
+    if (v.explode !== undefined && !(v.explode >= 0 && v.explode <= 1)) e(`机位 ${v.id} 的 explode 须在 [0,1]`)
+    for (const id of v.fade ?? []) if (!ids.has(id)) e(`机位 ${v.id} 的 fade 引用了不存在的零件 ${id}`)
+    if (v.select) checkRef(v.select, `机位 ${v.id} 的 select`)
+    if (v.section === true && !def.section) e(`机位 ${v.id} 写了 section: true，但展品没有 section`)
+  }
+
   for (const c of def.controls) if (!(c.key in (def.defaults as object))) e(`控件 ${c.key} 没有初值（defaults）`)
   const tl = def.timeline
   if (tl.speeds.length === 0) e('timeline.speeds 为空')

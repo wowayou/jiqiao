@@ -4,7 +4,8 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, test } from 'vitest'
 import { auditClaims } from './claims'
-import { exhibitLoaders, exhibitMetas } from './registry'
+import { exhibitLoaders, exhibitMetas, relatedMetas } from './registry'
+import type { ExhibitMeta } from './types'
 import { validateExhibit } from './validate'
 
 const root = resolve(process.cwd(), 'src/exhibits')
@@ -35,5 +36,18 @@ describe.each(dirs)('展品目录 %s', (dir) => {
     const tests = readdirSync(resolve(root, dir)).filter((f) => f.endsWith('.test.ts'))
     const calls = tests.some((f) => readFileSync(resolve(root, dir, f), 'utf8').includes('describeExhibitAudits('))
     expect(calls).toBe(true)
+  })
+})
+
+describe('相关展品链接', () => {
+  const mk = (id: string, related?: string[]) => ({ id, title: id, subtitle: '', category: 'mechanism', era: '', summary: '', related }) as ExhibitMeta
+  test('只返回已存在的展品；指向尚未制作的展品时不产生死链，也不报错', () => {
+    const a = mk('a', ['b', 'not-made-yet'])
+    expect(relatedMetas(a, [a, mk('b')]).map((m) => m.id)).toEqual(['b'])
+    expect(relatedMetas(mk('c'), [])).toEqual([])
+    expect(relatedMetas(mk('d', ['d']), [mk('d', ['d'])])).toEqual([])
+  })
+  test('真实注册表里每个 related 要么存在、要么被略过', () => {
+    for (const m of exhibitMetas) for (const r of relatedMetas(m)) expect(exhibitMetas.map((x) => x.id)).toContain(r.id)
   })
 })

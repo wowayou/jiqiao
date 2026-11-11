@@ -218,6 +218,30 @@ export interface SectionDef {
   label?: string
 }
 
+/** 预设机位：界面上一点即到的「看哪里、怎么看」。不属于几何，只改相机与显示状态。 */
+export interface ViewPreset {
+  /** 展品内唯一；'all' 保留给界面自带的「全景」 */
+  id: string
+  /** 按钮上的字，2–6 个字 */
+  label: string
+  /** 注视点（世界坐标，mm） */
+  target: Vec3
+  /** 想看清的范围的直径（mm）：相机据此取距离，窄屏会自动拉远，保证这个范围整个入画 */
+  size: number
+  /** 相机相对注视点的方向；缺省沿用 view.dir */
+  dir?: Vec3
+  /** 爆炸量 0–1，缺省 0（机位应当是完整的一套状态，不继承用户之前拉的爆炸） */
+  explode?: number
+  /** 让开：这些零件半透明，露出后面的东西 */
+  fade?: string[]
+  /** 剖切：true 用展品的 section；也可自带平面（保留 normal·x ≥ offset 一侧）。缺省关闭剖切 */
+  section?: true | SectionDef
+  /** 选中（强调色）的零件或 'part#feature' */
+  select?: string
+  /** 一句话：这个机位让你看什么（显示在机位条旁） */
+  note?: string
+}
+
 export interface AuditDef {
   /** 机械：啮合或接触的零件对，按相位采样检查干涉（0.5%） */
   contacts?: [string, string][]
@@ -245,6 +269,8 @@ export interface ExhibitDef<S = any, C = any> {
   view?: { dir?: Vec3; target?: Vec3 }
   /** 剖切默认平面。榫卯展品必填。 */
   section?: SectionDef
+  /** 预设机位（可选）：界面上一排一点即达的按钮，「全景」由界面自带 */
+  views?: ViewPreset[]
   /** 审计配置 */
   audit?: AuditDef
 }

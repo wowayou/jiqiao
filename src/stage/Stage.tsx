@@ -6,6 +6,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Box3,
   BufferGeometry,
+  MathUtils,
   DoubleSide,
   MeshBasicMaterial,
   Raycaster,
@@ -27,7 +28,7 @@ import type { Vec3 } from '../kinematics/vec'
 import { buildGeometries, disposeGeometries, type PartGeometry } from './buildGeometry'
 import { activeStepIds, computeFocus } from './focus'
 import { MaterialLibrary, THEMES, type Variant } from './materials'
-import { sectionPlane, timelineSpan, useStage, useStageStore, type StageStore } from './store'
+import { prefersReducedMotion, sectionPlane, timelineSpan, useStage, useStageStore, type CameraGoal, type StageStore } from './store'
 
 interface Inst {
   inst: PartInstance
@@ -42,6 +43,8 @@ interface Inst {
 }
 
 const DEFAULT_VIEW: Vec3 = [1, 0.8, 1.4]
+/** 重建场景（换主题）时记住相机，不跳回默认取景 */
+const savedCamera = new WeakMap<object, { target: Vector3; dir: Vector3; dist: number }>()
 
 export interface StageProps {
   def: AnyExhibit
@@ -93,7 +96,7 @@ export function Stage({ def, theme, label }: StageProps) {
       <hemisphereLight args={['#fffaf0', '#8a7f70', 1.1]} />
       <directionalLight position={[-1.2, 2, 1.4]} intensity={1.7} />
       <directionalLight position={[1.5, 0.6, -1]} intensity={0.45} />
-      <OrbitControls makeDefault enableDamping dampingFactor={0.12} />
+      <OrbitControls makeDefault enableDamping dampingFactor={0.12} zoomToCursor minDistance={4} maxDistance={20000} />
       {geoms && <SceneContent def={def} geoms={geoms} theme={theme} store={store} />}
     </Canvas>
   )
@@ -188,36 +191,195 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
     return { box, sphere, center }
   }, [def, insts, geoms])
 
-  const viewNonce = useStage((s) => s.viewNonce)
-  const cameraRef = useRef({ fitted: -1 })
-  useEffect(() => {
-    if (cameraRef.current.fitted === viewNonce && viewNonce !== 0) return
-    cameraRef.current.fitted = viewNonce
-    const dir = new Vector3(...(def.view?.dir ?? DEFAULT_VIEW)).normalize()
-    const aspect = gl.domElement.clientWidth / Math.max(1, gl.domElement.clientHeight)
+  // —— 相机 ——
+  // 取景把界面浮层（工具条、机位条）占掉的边缘算进去：可用高度 = 画布高 − 上下 inset，
+  // 并用 setViewOffset 把画面整体挪到可用区域的中央，所以装配态和爆炸态都不会钻到浮层底下。
+  const inset = useStage((s) => s.inset)
+  const camGoal = useStage((s) => s.camGoal)
+  const anim = useRef<{ t0: number; dur: number; t: Vector3; d0: Vector3; d1: Vector3; dist0: number; dist1: number; from: Vector3; to: Vector3 } | null>(null)
+  const userMoved = useRef(false)
+
+  const metrics = () => {
+    const W = Math.max(1, gl.domElement.clientWidth)
+    const H = Math.max(1, gl.domElement.clientHeight)
+    const { top, bottom } = store.getState().inset
+    const Hu = Math.max(H * 0.4, H - top - bottom)
     const tanV = Math.tan((camera.fov * Math.PI) / 360)
-    const tanH = tanV * aspect
-    // 相机基：right、up 垂直于视线；逐个包围盒角点求「刚好装下」的距离
+    return { W, H, top, bottom, tanV, tanVu: (tanV * Hu) / H, tanH: (tanV * W) / H }
+  }
+
+  const fitBox = (center: Vector3, dir: Vector3): number => {
+    const { tanH, tanVu } = metrics()
     const right = new Vector3(0, 1, 0).cross(dir).normalize()
     const up = dir.clone().cross(right).normalize()
-    const center = frame.center
     let dist = 0
     const { min, max } = frame.box
     for (let i = 0; i < 8; i++) {
       const p = new Vector3(i & 1 ? max.x : min.x, i & 2 ? max.y : min.y, i & 4 ? max.z : min.z).sub(center)
       const z = p.dot(dir)
-      dist = Math.max(dist, z + Math.abs(p.dot(right)) / tanH, z + Math.abs(p.dot(up)) / tanV)
+      dist = Math.max(dist, z + Math.abs(p.dot(right)) / tanH, z + Math.abs(p.dot(up)) / tanVu)
     }
-    dist *= 1.06
-    camera.position.copy(center).addScaledVector(dir, dist)
-    camera.near = Math.max(1, dist / 50)
-    camera.far = dist * 10
-    camera.updateProjectionMatrix()
+    return dist * 1.06
+  }
+  const fitSphere = (radius: number): number => {
+    const { tanH, tanVu } = metrics()
+    return (radius * 1.18) / Math.sin(Math.atan(Math.min(tanH, tanVu)))
+  }
+  const currentDir = () => camera.position.clone().sub(controls ? controls.target : frame.center).normalize()
+  const currentTarget = () => (controls ? controls.target.clone() : frame.center.clone())
+
+  /** 把相机带到 (target, dir, dist)。reduced motion 或 instant 时直接到位，不做缓动。 */
+  const goTo = (target: Vector3, dir: Vector3, dist: number, instant = false) => {
+    const d0 = currentDir()
+    const from = currentTarget()
+    const dist0 = camera.position.distanceTo(from)
+    if (instant || prefersReducedMotion()) {
+      anim.current = null
+      applyCamera(target, dir, dist)
+      return
+    }
+    // 距离远、转角大时慢一点，上限 0.9 s
+    const travel = from.distanceTo(target) / Math.max(dist, 1) + Math.abs(Math.log(dist / dist0)) + d0.angleTo(dir)
+    anim.current = { t0: performance.now(), dur: MathUtils.clamp(350 + travel * 220, 400, 900), t: target, d0, d1: dir.clone(), dist0, dist1: dist, from, to: target.clone() }
+  }
+  const applyCamera = (target: Vector3, dir: Vector3, dist: number) => {
+    camera.position.copy(target).addScaledVector(dir, dist)
     if (controls) {
-      controls.target.copy(center)
+      controls.target.copy(target)
       controls.update()
-    } else camera.lookAt(center)
-  }, [viewNonce, frame, camera, controls, def, gl])
+    } else camera.lookAt(target)
+  }
+  const stepAnim = () => {
+    const a = anim.current
+    if (!a) return
+    const u = MathUtils.clamp((performance.now() - a.t0) / a.dur, 0, 1)
+    const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2
+    const target = a.from.clone().lerp(a.to, e)
+    const q = new Quaternion().setFromUnitVectors(a.d0, a.d1)
+    const dir = a.d0.clone().applyQuaternion(new Quaternion().slerp(q, e)).normalize()
+    const dist = Math.exp(MathUtils.lerp(Math.log(a.dist0), Math.log(a.dist1), e))
+    applyCamera(target, dir, dist)
+    if (u >= 1) anim.current = null
+  }
+
+  const defaultDir = () => new Vector3(...(def.view?.dir ?? DEFAULT_VIEW)).normalize()
+
+  // 世界坐标里一组零件（含副本）的包围球；features 是 'part#feature' 引用，只取标注点
+  const partsSphere = (ids: string[], features: string[] = []): Sphere | null => {
+    const box = new Box3()
+    const set = new Set(ids)
+    for (const it of insts) {
+      if (!set.has(it.inst.part.id) || !it.group.visible) continue
+      it.group.updateMatrixWorld(true)
+      box.union(new Box3().setFromObject(it.mesh, true))
+    }
+    const featurePts: Vector3[] = []
+    for (const ref of features) {
+      const [pid, fid] = splitRef(ref)
+      const feat = def.parts.find((p) => p.id === pid)?.features?.find((f) => f.id === fid)
+      const it = insts.find((i) => i.inst.part.id === pid)
+      if (feat && it) {
+        it.group.updateMatrixWorld(true)
+        featurePts.push(it.group.localToWorld(new Vector3(...feat.anchor)))
+      }
+    }
+    // 协同链环里「整件」引用的零件很大时（只想指出其上的特征），以特征点为准
+    if (featurePts.length && !box.isEmpty()) {
+      const sz = box.getSize(new Vector3()).length()
+      if (sz > 600 && ids.every((i) => features.some((f) => splitRef(f)[0] === i))) box.makeEmpty()
+    }
+    for (const p of featurePts) box.expandByPoint(p).expandByScalar(0)
+    if (box.isEmpty()) return null
+    const sph = box.getBoundingSphere(new Sphere())
+    if (featurePts.length) sph.radius = Math.max(sph.radius, 70)
+    return sph
+  }
+
+  // 从 camPos 看向 center，被哪些零件挡住（不含 targets 本身与已半透明的）
+  const occludersOf = (camPos: Vector3, center: Vector3, targets: Set<string>): string[] => {
+    const ray = new Raycaster(camPos.clone(), center.clone().sub(camPos).normalize(), 0, camPos.distanceTo(center))
+    const fade = new Set(store.getState().fadeParts)
+    const meshes = insts.filter((i) => i.group.visible && !fade.has(i.inst.part.id)).map((i) => i.mesh)
+    const hits = ray.intersectObjects(meshes, false)
+    const out: string[] = []
+    for (const h of hits) {
+      const id = h.object.userData.pick as string
+      if (targets.has(id)) break
+      if (!out.includes(id)) out.push(id)
+    }
+    return out
+  }
+
+  const handleGoal = (g: CameraGoal) => {
+    if (g.kind === 'fit') {
+      const dir = defaultDir()
+      goTo(frame.center, dir, fitBox(frame.center, dir))
+    } else if (g.kind === 'preset') {
+      const v = def.views?.find((x) => x.id === g.id)
+      if (!v) return
+      const target = new Vector3(...v.target)
+      const dir = (v.dir ? new Vector3(...v.dir) : defaultDir()).normalize()
+      goTo(target, dir, fitSphere(v.size / 2))
+    } else {
+      const sph = partsSphere(g.ids, g.features)
+      if (!sph) return
+      const m = metrics()
+      const dir = currentDir()
+      if (g.auto) {
+        // 点协同链：够大又没被挡住就不动镜头，免得打扰
+        const dist = camera.position.distanceTo(sph.center)
+        const frac = sph.radius / (dist * m.tanV)
+        const blocked = occludersOf(camera.position, sph.center, new Set(g.ids)).length > 0
+        if (frac > 0.1 && !blocked) return
+      }
+      const dist = fitSphere(Math.max(sph.radius, 12))
+      const camPos = sph.center.clone().addScaledVector(dir, dist)
+      goTo(sph.center, dir, dist)
+      // 凑近之后仍被挡着的，让开（半透明）
+      const occ = occludersOf(camPos, sph.center, new Set(g.ids))
+      if (occ.length) {
+        const prev = store.getState().fadeParts
+        store.getState().setFade([...new Set([...prev, ...occ])])
+      }
+    }
+  }
+
+  // 初次取景 / 浮层尺寸变化而用户还没动过相机时重新取景（瞬间到位）；换主题重建场景时恢复上次相机
+  const doneNonce = useRef(store.getState().camGoal?.nonce ?? 0)
+  useEffect(() => {
+    const saved = savedCamera.get(store)
+    if (saved) {
+      applyCamera(saved.target, saved.dir, saved.dist)
+      userMoved.current = true
+      return
+    }
+    if (userMoved.current) return
+    const dir = defaultDir()
+    goTo(frame.center, dir, fitBox(frame.center, dir), true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frame, controls, inset.top, inset.bottom])
+
+  useEffect(() => {
+    if (!camGoal || camGoal.nonce === doneNonce.current) return
+    doneNonce.current = camGoal.nonce
+    userMoved.current = true
+    handleGoal(camGoal)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [camGoal])
+
+  useEffect(() => {
+    if (!controls) return
+    const onStart = () => {
+      userMoved.current = true
+      anim.current = null
+      store.getState().userMovedCamera()
+    }
+    controls.addEventListener('start', onStart)
+    return () => {
+      controls.removeEventListener('start', onStart)
+      savedCamera.set(store, { target: controls.target.clone(), dir: camera.position.clone().sub(controls.target).normalize(), dist: camera.position.distanceTo(controls.target) })
+    }
+  }, [controls, camera, store])
 
   // 键盘按钮的旋转/缩放指令
   const viewCommand = useStage((s) => s.viewCommand)
@@ -229,6 +391,7 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
     else offset.multiplyScalar(viewCommand.amount)
     camera.position.copy(target).add(offset)
     controls.update()
+    anim.current = null
   }, [viewCommand, controls, camera])
 
   // —— 剖切开关 ——
@@ -255,6 +418,34 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
   const lastSnap = useRef(0)
   useFrame((_, dtRaw) => {
     const st = store.getState()
+    stepAnim()
+    // 视图偏移：把画面挪到「去掉浮层后的可用区域」中央
+    {
+      const m = metrics()
+      const dy = (m.top - m.bottom) / 2
+      const v = camera.view
+      if (!v || !v.enabled || v.fullWidth !== m.W || v.fullHeight !== m.H || Math.abs(v.offsetY + dy) > 0.5) {
+        camera.setViewOffset(m.W, m.H, 0, -dy, m.W, m.H)
+      }
+      // 相机读数挂在画布元素上，供端到端测试与调试读取（不参与任何渲染逻辑）
+      if (controls) {
+        const o = camera.position.clone().sub(controls.target)
+        const ds = gl.domElement.dataset
+        ds.camDist = o.length().toFixed(1)
+        ds.camAz = ((Math.atan2(o.x, o.z) * 180) / Math.PI).toFixed(1)
+        ds.camTarget = `${controls.target.x.toFixed(0)},${controls.target.y.toFixed(0)},${controls.target.z.toFixed(0)}`
+        ds.camAnim = anim.current ? '1' : '0'
+      }
+      // 近远裁剪面随当前距离走：凑近几毫米的零件时不会被近平面切掉
+      const dist = controls ? camera.position.distanceTo(controls.target) : 1000
+      const near = Math.max(0.4, dist * 0.02)
+      const far = (dist + frame.sphere.radius * 2.5) * 1.5
+      if (Math.abs(near - camera.near) / camera.near > 0.05 || Math.abs(far - camera.far) / camera.far > 0.05) {
+        camera.near = near
+        camera.far = far
+        camera.updateProjectionMatrix()
+      }
+    }
     const dt = Math.min(dtRaw, 0.1)
     let t = st.t
     if (st.playing) {
@@ -271,6 +462,7 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
     const active = activeStepIds(def, s)
     const focus = computeFocus(def, st.selected, st.pinnedStep, active)
     const fadeOthers = st.isolate && focus.parts.size > 0
+    const fadeSet = new Set(st.fadeParts)
     const secOn = st.section.on
     for (const it of insts) {
       const ist = scene.get(it.inst.key)!
@@ -279,7 +471,7 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
       if (ist.pose.q) it.group.quaternion.set(...ist.pose.q)
       else it.group.quaternion.identity()
       const id = it.inst.part.id
-      const v: Variant = focus.parts.has(id) ? 'accent' : fadeOthers ? 'faded' : 'normal'
+      const v: Variant = focus.parts.has(id) ? 'accent' : fadeOthers || fadeSet.has(id) ? 'faded' : 'normal'
       const hover = st.hovered === id && v !== 'accent'
       const key = `${v}|${hover}|${secOn}`
       if (key !== it.state) {
@@ -333,6 +525,7 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
       const obj = hit.object
       const id = obj.userData?.pick as string | undefined
       if (!id || !visibleInScene(obj)) continue
+      if (store.getState().fadeParts.includes(id)) continue
       if (lib.clipping.length && plane.distanceToPoint(hit.point) < 0) continue
       first = { id, distance: hit.distance }
       break
@@ -384,6 +577,14 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
           e.stopPropagation()
           const id = pick(e)
           store.getState().select(id)
+        }}
+        onDoubleClick={(e: ThreeEvent<MouseEvent>) => {
+          e.stopPropagation()
+          const id = pick(e)
+          if (id) {
+            store.getState().select(id)
+            store.getState().focusPart(id)
+          }
         }}
       />
       <primitive object={capGroup} />

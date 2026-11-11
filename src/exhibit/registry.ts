@@ -34,3 +34,8 @@ export async function loadExhibit(id: string): Promise<AnyExhibit> {
   if (!load) throw new Error(`没有这个展品：${id}`)
   return load()
 }
+
+/** 相关展品：只返回注册表里真有的，指向尚未制作的展品（如 muniu-buxing）时静默略过，不产生死链。 */
+export function relatedMetas(meta: ExhibitMeta, all: ExhibitMeta[] = exhibitMetas): ExhibitMeta[] {
+  return (meta.related ?? []).map((id) => all.find((m) => m.id === id)).filter((m): m is ExhibitMeta => Boolean(m) && m!.id !== meta.id)
+}
