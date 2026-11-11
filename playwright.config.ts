@@ -6,7 +6,7 @@ const port = Number(process.env.E2E_PORT ?? 5183)
 
 export default defineConfig({
   testDir: 'e2e',
-  timeout: 90_000,
+  timeout: 180_000,
   expect: { timeout: 20_000 },
   workers: 2,
   webServer: {

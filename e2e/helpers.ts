@@ -41,9 +41,12 @@ export async function canvasShot(canvas: Locator): Promise<Buffer> {
   return canvas.screenshot()
 }
 
-/** 两次截图之间画面确实变了 */
+/**
+ * 两次截图之间画面确实变了。
+ * 无头浏览器用软件渲染：零件多的展品开剖切后，单帧可达数秒（水碓实测 8.3 秒才出新画面），所以等得久一些。
+ */
 export async function expectCanvasChanged(page: Page, canvas: Locator, before: Buffer) {
-  await expect.poll(async () => !(await canvas.screenshot()).equals(before), { timeout: 10_000 }).toBe(true)
+  await expect.poll(async () => !(await canvas.screenshot()).equals(before), { timeout: 30_000 }).toBe(true)
 }
 
 export async function setRange(input: Locator, value: number) {
