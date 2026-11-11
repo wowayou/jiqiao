@@ -156,7 +156,7 @@ export const PART_TEXT: Record<PartId, PartText> = {
         id: 'teeth',
         name: '尖齿',
         role: '只有齿尖与叉瓦接触：齿尖抵在锁面上被锁住，滑过冲击面时推叉。前齿面向前倾，避免整面贴上锁面。',
-        anchor: [0, 45, -18.5],
+        anchor: [0, 45, -26.5],
         claims: [{ text: '前倾角与齿根宽为本站设定。', provenance: 'model' }],
       },
     ],
@@ -176,8 +176,8 @@ export const PART_TEXT: Record<PartId, PartText> = {
       { text: '冲击面让叉多转 2.4°、让擒纵轮前进 4.5°；放开角 −0.8°、锁深 0.8°、锁面长 4.5°（叉角），均为本站设定。', provenance: 'model' },
     ],
     features: [
-      { id: 'lock', name: '入瓦锁面', role: '以叉轴为圆心的外侧圆弧：齿尖抵在这里，轮子被锁住。', anchor: [-31, -31, -18.5] },
-      { id: 'impulse', name: '入瓦冲击面', role: '下端的斜面：齿尖滑过它时把叉往前推一把。', anchor: [-33, -34, -18.5] },
+      { id: 'lock', name: '入瓦锁面', role: '以叉轴为圆心的外侧圆弧：齿尖抵在这里，轮子被锁住。', anchor: [-31, -31, -26.5] },
+      { id: 'impulse', name: '入瓦冲击面', role: '下端的斜面：齿尖滑过它时把叉往前推一把。', anchor: [-33, -34, -26.5] },
     ],
   },
   'pallet-exit': {
@@ -185,8 +185,8 @@ export const PART_TEXT: Record<PartId, PartText> = {
     role: '右侧叉瓦（从表盘一侧看），齿从右边离开两叉瓦之间时由它挡住。内侧圆弧是锁面，下端斜面是冲击面。',
     claims: [{ text: '尺寸与入瓦对称设计，冲击与锁深相同（本站设定）。', provenance: 'model' }],
     features: [
-      { id: 'lock', name: '出瓦锁面', role: '以叉轴为圆心的内侧圆弧：齿尖从里往外顶在这里，轮子被锁住。', anchor: [31, -31, -18.5] },
-      { id: 'impulse', name: '出瓦冲击面', role: '下端的斜面：齿尖滑过它时把叉往回推一把。', anchor: [33, -34, -18.5] },
+      { id: 'lock', name: '出瓦锁面', role: '以叉轴为圆心的内侧圆弧：齿尖从里往外顶在这里，轮子被锁住。', anchor: [31, -31, -26.5] },
+      { id: 'impulse', name: '出瓦冲击面', role: '下端的斜面：齿尖滑过它时把叉往回推一把。', anchor: [33, -34, -26.5] },
     ],
   },
   cannon: {

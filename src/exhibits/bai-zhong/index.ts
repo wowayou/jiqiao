@@ -21,7 +21,7 @@ const PHASE_LABEL: Record<EscPhase, string> = { lock: '锁', impulse: '冲击', 
 function escSteps(p: PalletName): ChainStep<ClockState>[] {
   const name = PALLET_LABEL[p]
   const part = PALLET_PART[p]
-  const swing = p === 'entry' ? '摆向右' : '摆向左'
+  const swing = p === 'entry' ? '摆锤向左' : '摆锤向右'
   return [
     {
       id: `lock-${p}`,
@@ -34,7 +34,7 @@ function escSteps(p: PalletName): ChainStep<ClockState>[] {
     {
       id: `impulse-${p}`,
       title: `冲击 · ${name}`,
-      parts: [part, 'escape-wheel', 'pendulum'],
+      parts: [part, 'escape-wheel'],
       text: `${swing}摆过中点附近，锁面走完，齿尖滑上${name}下端的斜面（冲击面）。齿尖一边沿斜面往前走（轮子前进约 4.5°），一边把叉——也就是摆——顺着它正在走的方向推一把，补上摆每一摆损失的能量。`,
       provenance: 'calc',
       active: (s) => s.phase === 'impulse' && s.pallet === p,
@@ -72,7 +72,6 @@ export default defineExhibit<ClockState, ClockControls>({
       parts: ['great-wheel', 'center-wheel', 'third-wheel', 'escape-wheel'],
       text: '只有在冲击和落的时候擒纵轮才转，大轮、中心轮、三轮跟着同时走一小步，重锤也跟着下降一点；锁住时整条轮系连同重锤都停着。',
       provenance: 'calc',
-      active: (s) => s.moving,
     },
     ...escSteps('entry'),
     ...escSteps('exit'),
@@ -115,7 +114,7 @@ export default defineExhibit<ClockState, ClockControls>({
     { label: '摆长 / 周期', value: () => `${PENDULUM_LENGTH.toFixed(1)} mm / ${PENDULUM_PERIOD} s`, provenance: 'calc' },
   ],
   sources,
-  view: { dir: [0.75, 0.35, 1] },
+  view: { dir: [0.45, 0.75, 1] },
   section: { normal: [0, 0, -1], offset: -20, label: '过擒纵轮的前后剖面（切掉表盘与前夹板一侧）' },
   audit: {
     phases: 127,

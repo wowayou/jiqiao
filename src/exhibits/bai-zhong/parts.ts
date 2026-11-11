@@ -29,7 +29,7 @@ const { C, E, T, G, M, P } = AXES
 const ARBOR = { great: 2.5, center: 2.5, third: 2, escape: 2, anchor: 2 }
 const HOLE = 0.3
 /** 夹板外框（机芯平面坐标） */
-const FRAME = { x0: -125, x1: 90, y0: -160, y1: 182, border: 10 }
+const FRAME = { x0: -125, x1: 90, y0: -160, y1: 215, border: 10 }
 const PILLARS: Vec2[] = [
   [FRAME.x0 + 8, FRAME.y0 + 8],
   [FRAME.x1 - 8, FRAME.y0 + 8],
@@ -335,7 +335,7 @@ const defs: (Def & { id: PartId })[] = [
     solid: greatWheel,
     rest: spin(G, 0, 0),
     pose: (s) => spin(G, 0, s.angle.great),
-    explode: { dir: [0, 0, 1], distance: 90, order: 3 },
+    explode: { dir: [-0.868744485526, -0.477809467039, 0.130311672829], distance: 330, order: 3 },
   },
   {
     id: 'barrel',
@@ -353,7 +353,7 @@ const defs: (Def & { id: PartId })[] = [
     solid: centerWheel,
     rest: spin(C, 0, 0),
     pose: (s) => spin(C, 0, s.angle.center),
-    explode: { dir: [0, 0, 1], distance: 170, order: 4 },
+    explode: { dir: [0.896221429896, -0.313677500464, 0.313677500464], distance: 250, order: 4 },
   },
   {
     id: 'third-wheel',
@@ -362,7 +362,7 @@ const defs: (Def & { id: PartId })[] = [
     solid: thirdWheel,
     rest: spin(T, 0, 0),
     pose: (s) => spin(T, 0, s.angle.third),
-    explode: { dir: [0, 0, 1], distance: 250, order: 5 },
+    explode: { dir: [0.93968197147, -0.093968197147, 0.328888690014], distance: 340, order: 5 },
   },
   {
     id: 'escape-wheel',
@@ -371,7 +371,7 @@ const defs: (Def & { id: PartId })[] = [
     solid: escapeArbor,
     rest: spin(E, 0, -ESC0),
     pose: (s) => spin(E, 0, -(s.psi + ESC0)),
-    explode: { dir: [0, 0, 1], distance: 330, order: 6 },
+    explode: { dir: [0.934538627032, 0.140180794055, 0.327088519461], distance: 420, order: 6 },
   },
   {
     id: 'anchor',
@@ -380,7 +380,7 @@ const defs: (Def & { id: PartId })[] = [
     solid: anchor,
     rest: { p: at(P) },
     pose: (s) => ({ p: at(P), q: rotZ(s.pendulum) }),
-    explode: { dir: [0, 0, 1], distance: 410, order: 7 },
+    explode: { dir: [0.908153218373, 0.272445965512, 0.317853626431], distance: 470, order: 7 },
   },
   {
     id: 'pallet-entry',
@@ -406,7 +406,7 @@ const defs: (Def & { id: PartId })[] = [
     material: 'brass',
     solid: plate(true),
     rest: { p: at([0, 0]) },
-    explode: { dir: [0, 0, 1], distance: 480, order: 8 },
+    explode: { dir: [0, 0, 1], distance: 130, order: 8 },
   },
   {
     id: 'cannon',
@@ -419,7 +419,7 @@ const defs: (Def & { id: PartId })[] = [
       ]),
     rest: spin(C, 0, 0),
     pose: (s) => spin(C, 0, s.angle.center),
-    explode: { dir: [0, 0, 1], distance: 540, order: 9 },
+    explode: { dir: [-0.399421258459, -0.499276573074, 0.768885922534], distance: 240, order: 9 },
   },
   {
     id: 'minute-wheel',
@@ -433,7 +433,7 @@ const defs: (Def & { id: PartId })[] = [
       ]),
     rest: spin(M, 0, 0),
     pose: (s) => spin(M, 0, s.angle.minute),
-    explode: { dir: [0, 0, 1], distance: 580, order: 10 },
+    explode: { dir: [-0.399421258459, -0.499276573074, 0.768885922534], distance: 270, order: 10 },
   },
   {
     id: 'hour-wheel',
@@ -446,7 +446,7 @@ const defs: (Def & { id: PartId })[] = [
       ]),
     rest: spin(C, 0, 0),
     pose: (s) => spin(C, 0, s.angle.hour),
-    explode: { dir: [0, 0, 1], distance: 620, order: 11 },
+    explode: { dir: [-0.399421258459, -0.499276573074, 0.768885922534], distance: 300, order: 11 },
   },
   {
     id: 'dial',
@@ -454,7 +454,7 @@ const defs: (Def & { id: PartId })[] = [
     material: 'dial',
     solid: dial,
     rest: { p: at([0, 0]) },
-    explode: { dir: [0, 0, 1], distance: 680, order: 12 },
+    explode: { dir: [-0.557006651896, 0.658280588604, 0.506369683542], distance: 380, order: 12 },
   },
   {
     id: 'dial-marks',
@@ -471,7 +471,7 @@ const defs: (Def & { id: PartId })[] = [
     solid: (k) => handSolid(k, { len: 94, tail: 14, w0: 5, w1: 2, boss: 9, bore: 5.6, z: Z.hourHand, spade: 72 }),
     rest: spin(C, 0, 0),
     pose: (s) => spin(C, 0, -s.hands.hour),
-    explode: { dir: [0, 0, 1], distance: 740, order: 13 },
+    explode: { dir: [0.100180487463, 0.901624387163, 0.420758047343], distance: 380, order: 13 },
   },
   {
     id: 'minute-hand',
@@ -480,7 +480,7 @@ const defs: (Def & { id: PartId })[] = [
     solid: (k) => handSolid(k, { len: 142, tail: 22, w0: 4, w1: 1.4, boss: 7, bore: 4, z: Z.minuteHand }),
     rest: spin(C, 0, 0),
     pose: (s) => spin(C, 0, -s.hands.minute),
-    explode: { dir: [0, 0, 1], distance: 800, order: 14 },
+    explode: { dir: [0.100180487463, 0.901624387163, 0.420758047343], distance: 460, order: 14 },
   },
   {
     id: 'second-hand',
@@ -489,7 +489,7 @@ const defs: (Def & { id: PartId })[] = [
     solid: (k) => handSolid(k, { len: 24, tail: 8, w0: 1.6, w1: 0.8, boss: 3.6, bore: ARBOR.escape, z: Z.secondHand }),
     rest: spin(E, 0, 0),
     pose: (s) => spin(E, 0, -s.hands.second),
-    explode: { dir: [0, 0, 1], distance: 760, order: 13 },
+    explode: { dir: [0.100180487463, 0.901624387163, 0.420758047343], distance: 300, order: 13 },
   },
 ]
 
