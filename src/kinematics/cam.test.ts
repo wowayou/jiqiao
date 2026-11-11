@@ -133,7 +133,7 @@ describe('makeRockerCycle：压下 → 最高点 → 回落 → 静止', () => {
     }
   })
   test('周期闭合：at(α) = at(α + 2π)', () => {
-    for (const a of [0.2, 1.7, -2.4, c.alphaIn, c.alphaOut]) {
+    for (const a of [0.2, 1.7, -2.4, c.alphaIn, c.alphaEnd]) {
       expect(c.at(a).phi).toBeCloseTo(c.at(a + TAU).phi, 9)
       expect(c.at(a).stage).toBe(c.at(a + TAU).stage)
     }
