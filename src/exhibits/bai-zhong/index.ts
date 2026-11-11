@@ -55,7 +55,7 @@ export default defineExhibit<ClockState, ClockControls>({
   intro,
   controls: [],
   defaults: {},
-  timeline: { kind: 'cyclic', period: PERIOD, speeds: [0.05, 0.1, 0.25, 1, 10, 60, 600, 3600], defaultSpeed: 1 },
+  timeline: { kind: 'cyclic', period: PERIOD, speeds: [0.05, 0.1, 0.25, 1, 10, 60, 600, 3600], defaultSpeed: 10 },
   simulate,
   parts,
   chain: [
