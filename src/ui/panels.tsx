@@ -1,11 +1,13 @@
 // 展品页的各个面板。全部只读 store；运动与读数都来自 simulate 的状态快照。
 import { useMemo } from 'react'
 import { splitRef } from '../exhibit/scene'
-import { DOF_LABEL, GROUP_LABEL, PROVENANCE_LABEL, type AnyExhibit, type Dof, type PartGroup } from '../exhibit/types'
+import { DOF_LABEL, GROUP_LABEL, PROVENANCE_LABEL, type AnyExhibit, type Dof, type PartGroup, type TimeMoment } from '../exhibit/types'
 import { timelineSpan, useStage, useStageActions } from '../stage/store'
+import { formatTime, mainStep, minorOf, minorPos } from '../stage/timeline'
 import { ClaimItem, ClaimList, ProvTag } from './Provenance'
 
 // —— 时间轴 ——
+// 主进度条管整个周期；有小循环的展品多一条细调条，只覆盖「当前这个小循环」，单步按钮也按小循环的几分之一走。
 export function Timeline({ def }: { def: AnyExhibit }) {
   const t = useStage((s) => s.t)
   const playing = useStage((s) => s.playing)
@@ -14,46 +16,115 @@ export function Timeline({ def }: { def: AnyExhibit }) {
   const tl = def.timeline
   const span = timelineSpan(def)
   const isAsm = tl.kind === 'assembly'
-  const label = isAsm ? `装配 ${Math.round(t * 100)}%` : `${t.toFixed(2)} / ${span} 秒`
+  const minor = minorOf(def)
+  const pos = minor && tl.kind === 'cyclic' ? minorPos(minor, tl.period, t) : null
+  const mStep = mainStep(def)
+  const quantized = Boolean(minor && pos && mStep === minor.period)
+  const label = isAsm ? `装配 ${Math.round(t * 100)}%` : `${formatTime(t, span)} / ${formatTime(span, span)}`
+  const moments = tl.kind === 'cyclic' ? (tl.moments ?? []) : []
   return (
     <div className="timeline" role="group" aria-label={isAsm ? '装配进度' : '时间轴'}>
-      <button type="button" className="btn btn-primary" onClick={togglePlay} aria-pressed={playing} data-testid="play">
-        {playing ? '暂停' : isAsm && t >= 1 ? '重新装配' : '播放'}
-      </button>
-      <button type="button" className="btn btn-icon" onClick={() => step(-1)} aria-label="后退一步" title="后退一步（←）">
-        ‹
-      </button>
-      <button type="button" className="btn btn-icon" onClick={() => step(1)} aria-label="前进一步" title="前进一步（→）">
-        ›
-      </button>
-      <input
-        type="range"
-        min={0}
-        max={span}
-        step={span / 1000}
-        value={t}
-        aria-label={isAsm ? '装配进度' : '时间'}
-        aria-valuetext={label}
-        data-testid="scrub"
-        onChange={(e) => {
-          setPlaying(false)
-          setT(Number(e.target.value))
-        }}
-      />
-      <span className="tval" aria-live="off">
-        {label}
-      </span>
-      <label className="field">
-        <span>速度</span>
-        <select className="select" value={speed} onChange={(e) => setSpeed(Number(e.target.value))} data-testid="speed">
-          {tl.speeds.map((v) => (
-            <option key={v} value={v}>
-              {v}×
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="timeline-row">
+        <button type="button" className="btn btn-primary" onClick={togglePlay} aria-pressed={playing} data-testid="play">
+          {playing ? '暂停' : isAsm && t >= 1 ? '重新装配' : '播放'}
+        </button>
+        <button type="button" className="btn btn-icon" onClick={() => step(-1)} aria-label="后退一步" title="后退一步（←）" data-testid="step-back">
+          ‹
+        </button>
+        <button type="button" className="btn btn-icon" onClick={() => step(1)} aria-label="前进一步" title="前进一步（→）" data-testid="step-fwd">
+          ›
+        </button>
+        <input
+          type="range"
+          min={0}
+          max={span}
+          step={mStep}
+          value={quantized ? Math.max(0, pos!.start - (minor!.offset ?? 0)) : t}
+          aria-label={isAsm ? '装配进度' : minor ? '整个周期（粗调）' : '时间'}
+          aria-valuetext={label}
+          data-testid="scrub"
+          onChange={(e) => {
+            setPlaying(false)
+            const v = Number(e.target.value)
+            // 按小循环取整的粗调条：跳到别的小循环时保留在小循环内的位置，细调不丢
+            setT(quantized ? v + (minor!.offset ?? 0) + (t - pos!.start) : v)
+          }}
+        />
+        <span className="tval" aria-live="off" data-testid="tval">
+          {label}
+        </span>
+        <label className="field">
+          <span>速度</span>
+          <select className="select" value={speed} onChange={(e) => setSpeed(Number(e.target.value))} data-testid="speed">
+            {tl.speeds.map((v) => (
+              <option key={v} value={v}>
+                {v}×{v < 1 ? ' 慢放' : v > 1 ? ' 快进' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {minor && pos && (
+        <div className="timeline-row timeline-fine" role="group" aria-label="细调">
+          <span className="fine-name" data-testid="fine-name">
+            第 {pos.index} {minor.unit}
+            <small> / 共 {pos.count}</small>
+          </span>
+          <input
+            type="range"
+            min={pos.start}
+            max={pos.start + minor.period}
+            step={minor.period / 1000}
+            value={t}
+            aria-label={`细调：当前这一${minor.unit}内的位置`}
+            aria-valuetext={`第 ${pos.index} ${minor.unit}内 ${(t - pos.start).toFixed(2)} 秒`}
+            data-testid="fine"
+            onChange={(e) => {
+              setPlaying(false)
+              setT(Number(e.target.value))
+            }}
+          />
+          <span className="tval" data-testid="fine-val">
+            {(t - pos.start).toFixed(2)} / {minor.period} 秒
+          </span>
+          <MomentsSelect moments={moments} />
+        </div>
+      )}
+      {!minor && moments.length > 0 && (
+        <div className="timeline-row">
+          <MomentsSelect moments={moments} />
+        </div>
+      )}
     </div>
+  )
+}
+
+function MomentsSelect({ moments }: { moments: TimeMoment[] }) {
+  const { setT, setPlaying } = useStageActions()
+  if (moments.length === 0) return null
+  return (
+    <select
+      className="select"
+      value=""
+      aria-label="跳到关键瞬间"
+      data-testid="moments"
+      onChange={(e) => {
+        const m = moments[Number(e.target.value)]
+        if (m) {
+          setPlaying(false)
+          setT(m.t)
+        }
+      }}
+    >
+      <option value="" disabled>
+        跳到关键瞬间…
+      </option>
+      {moments.map((m, i) => (
+        <option key={m.label} value={i}>
+          {m.label}
+        </option>
+      ))}
+    </select>
   )
 }
 

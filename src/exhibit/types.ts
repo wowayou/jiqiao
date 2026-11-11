@@ -143,6 +143,25 @@ export type ControlDef<C> =
   | { key: keyof C & string; label: string; kind: 'range'; min: number; max: number; step: number; unit?: string }
   | { key: keyof C & string; label: string; kind: 'select'; options: { value: string; label: string }[] }
 
+/** 小循环：周期很长的展品里，值得一眼看清的最小重复单元（摆钟一次摆动、足轮一圈、一个碓的一次起落）。 */
+export interface MinorCycle {
+  /** 小循环的时长（秒）。period 须是它的整数倍。 */
+  period: number
+  /** 计数单位，界面显示「第 n {unit}」，如 '摆'、'圈'、'次起落' */
+  unit: string
+  /** 小循环从模型时间 offset 起算（默认 0，须 < period）。让一次完整的动作落在同一格里，而不是被格线切开。 */
+  offset?: number
+  /** 单步按钮把一个小循环分成几步（默认 40） */
+  steps?: number
+}
+
+/** 时间轴上的一个关键瞬间，界面里一点即到。 */
+export interface TimeMoment {
+  /** 模型时间（秒），0 ≤ t < period */
+  t: number
+  label: string
+}
+
 export type TimelineDef =
   | {
       kind: 'cyclic'
@@ -150,6 +169,10 @@ export type TimelineDef =
       period: number
       speeds: number[]
       defaultSpeed?: number
+      /** 可选：小循环。给了就多一条只覆盖当前小循环的细调条，单步按钮按小循环的 1/steps 走。 */
+      minor?: MinorCycle
+      /** 可选：关键瞬间，界面里「跳到…」直接到达 */
+      moments?: TimeMoment[]
     }
   | {
       kind: 'assembly'

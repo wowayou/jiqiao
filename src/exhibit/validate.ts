@@ -66,6 +66,16 @@ export function validateExhibit(def: AnyExhibit, dirName?: string): string[] {
   if (tl.speeds.length === 0) e('timeline.speeds 为空')
   if (tl.kind === 'cyclic' && !(tl.period > 0)) e('cyclic 时间轴须有正的 period')
   if (tl.kind === 'assembly' && !(tl.duration > 0)) e('assembly 时间轴须有正的 duration')
+  if (tl.kind === 'cyclic' && tl.minor) {
+    const n = tl.period / tl.minor.period
+    if (!(tl.minor.period > 0) || Math.abs(n - Math.round(n)) > 1e-9) e(`timeline.minor.period 须是 period 的约数（周期 ${tl.period} / 小循环 ${tl.minor.period}）`)
+    const off = tl.minor.offset ?? 0
+    if (off < 0 || off >= tl.minor.period) e('timeline.minor.offset 须在 [0, minor.period) 内')
+    if (!tl.minor.unit) e('timeline.minor.unit 不能为空')
+  }
+  if (tl.kind === 'cyclic') {
+    for (const m of tl.moments ?? []) if (!(m.t >= 0 && m.t < tl.period)) e(`关键瞬间「${m.label}」的 t 须在 [0, period) 内`)
+  }
   if (meta.category === 'joinery' && !def.section) e('榫卯展品必须提供 section（带截面的剖切）')
   if (meta.category === 'joinery' && tl.kind !== 'assembly') e('榫卯展品的时间轴应为 assembly')
 

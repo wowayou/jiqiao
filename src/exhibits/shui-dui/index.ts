@@ -2,7 +2,7 @@
 import { defineExhibit, type ChainStep } from '../../exhibit/types'
 import { intro, sources } from './content'
 import { meta } from './meta'
-import { LANES, N_PEGS, PEG_BETA, PERIOD, STRIKE_FLASH, simulate, strikesPerMinute, type DuiControls, type DuiState, type LeverStage } from './model'
+import { LANES, N_PEGS, PEGS_PER_LEVER, PEG_BETA, PERIOD, STRIKE_FLASH, simulate, strikesPerMinute, type DuiControls, type DuiState, type LeverStage } from './model'
 import { PEG_ID, grainId, leverId, mortarId, parts, pestleId } from './parts'
 
 const ZH = ['一', '二', '三', '四']
@@ -46,7 +46,19 @@ export default defineExhibit<DuiState, DuiControls>({
   intro,
   controls: [{ key: 'water', label: '显示水流示意', kind: 'toggle' }],
   defaults: { water: true },
-  timeline: { kind: 'cyclic', period: PERIOD, speeds: [0.1, 0.25, 0.5, 1, 2], defaultSpeed: 0.5 },
+  timeline: {
+    kind: 'cyclic',
+    period: PERIOD,
+    speeds: [0.1, 0.25, 0.5, 1, 2],
+    defaultSpeed: 0.5,
+    // 碓一每块拨板压一次：每 PERIOD / PEGS_PER_LEVER 秒起落一次；offset 让「压 → 落 → 砸」落在同一格里
+    minor: { period: PERIOD / PEGS_PER_LEVER, unit: '次起落', offset: 1, steps: 50 },
+    moments: [
+      { t: 1.2, label: '拨板刚压上碓尾（碓一）' },
+      { t: 2.2, label: '碓头下落（碓一）' },
+      { t: 2.5, label: '碓头砸进臼里（碓一）' },
+    ],
+  },
   simulate,
   parts,
   chain: [

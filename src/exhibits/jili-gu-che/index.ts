@@ -28,7 +28,21 @@ export default defineExhibit<CarState, CarControls>({
   intro,
   controls: [{ key: 'marks', label: '显示地面刻线', kind: 'toggle' }],
   defaults: { marks: true },
-  timeline: { kind: 'cyclic', period: PERIOD, speeds: [0.1, 0.25, 1, 10, 50, 200], defaultSpeed: 1 },
+  timeline: {
+    kind: 'cyclic',
+    period: PERIOD,
+    speeds: [0.1, 0.25, 1, 10, 50, 200],
+    defaultSpeed: 1,
+    // 足轮转一圈 T_F 秒：旋风轮拨一次中平轮（一拨一停）正好是一格
+    minor: { period: T_F, unit: '圈', steps: 40 },
+    moments: [
+      { t: 0.4, label: '旋风轮拨中平轮' },
+      { t: 100 * T_F - 0.1, label: '击鼓前一刻（一里）' },
+      { t: 100 * T_F + 0.3, label: '击鼓（一里）' },
+      { t: 1000 * T_F - 0.1, label: '击鐲前一刻（十里）' },
+      { t: 1000 * T_F + 0.3, label: '击鐲（十里）' },
+    ],
+  },
   simulate,
   parts,
   chain: [

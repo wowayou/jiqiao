@@ -3,6 +3,7 @@ import { createContext, useContext } from 'react'
 import { createStore, useStore, type StoreApi } from 'zustand'
 import type { AnyExhibit } from '../exhibit/types'
 import type { Vec3 } from '../kinematics/vec'
+import { minorOf, stepSize } from './timeline'
 
 export type SectionAxis = 'default' | 'x' | 'y' | 'z'
 
@@ -58,7 +59,7 @@ export interface StageActions {
   resetView(): void
   nudgeView(kind: 'orbit' | 'zoom', amount: number): void
   /** 按当前时间轴步进（秒或进度） */
-  step(dir: 1 | -1): void
+  step(dir: 1 | -1, big?: boolean): void
 }
 
 export type Stage = StageState & StageActions
@@ -121,10 +122,13 @@ export function createStageStore(def: AnyExhibit): StageStore {
     setControl: (key, value) => set({ controls: { ...get().controls, [key]: value } }),
     resetView: () => set({ viewNonce: get().viewNonce + 1 }),
     nudgeView: (kind, amount) => set({ viewCommand: { kind, amount, nonce: (get().viewCommand?.nonce ?? 0) + 1 } }),
-    step: (dir) => {
-      const span = timelineSpan(get().def)
+    step: (dir, big) => {
+      const d = get().def
+      const minor = minorOf(d)
+      // Shift+方向键：整格走（有小循环按一个小循环，否则 10 倍单步）
+      const size = big ? (minor ? minor.period : stepSize(d) * 10) : stepSize(d)
       set({ playing: false })
-      get().setT(get().t + dir * span * (tl.kind === 'cyclic' ? 1 / 72 : 1 / 40))
+      get().setT(get().t + dir * size)
     },
   }))
 }

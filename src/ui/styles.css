@@ -414,14 +414,33 @@ input[type='range'] {
 /* 时间轴 */
 .timeline {
   display: flex;
-  align-items: center;
-  gap: var(--s3);
+  flex-direction: column;
+  gap: var(--s1);
   padding: var(--s2) var(--s4);
   border-top: 1px solid var(--line);
   background: var(--paper);
 }
+.timeline-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-width: 0;
+}
 .timeline input[type='range'] {
   flex: 1;
+}
+.timeline-fine {
+  padding-top: var(--s1);
+  border-top: 1px dashed var(--line);
+}
+.fine-name {
+  min-width: 176px;
+  font-size: var(--fs-1);
+  color: var(--ink);
+  white-space: nowrap;
+}
+.fine-name small {
+  color: var(--ink-3);
 }
 .timeline .tval {
   min-width: 7.5em;
@@ -711,13 +730,20 @@ input[type='range'] {
     display: none;
   }
   .timeline {
+    padding: var(--s2) var(--s3);
+  }
+  .timeline-row {
     flex-wrap: wrap;
     gap: var(--s2);
-    padding: var(--s2) var(--s3);
   }
   .timeline input[type='range'] {
     order: 10;
     flex-basis: 100%;
+    min-height: 28px;
+  }
+  .timeline-fine .fine-name {
+    order: 0;
+    min-width: 0;
   }
   .aside {
     border-top: 1px solid var(--line);

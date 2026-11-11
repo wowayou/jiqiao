@@ -55,7 +55,21 @@ export default defineExhibit<ClockState, ClockControls>({
   intro,
   controls: [],
   defaults: {},
-  timeline: { kind: 'cyclic', period: PERIOD, speeds: [0.05, 0.1, 0.25, 1, 10, 60, 600, 3600], defaultSpeed: 10 },
+  timeline: {
+    kind: 'cyclic',
+    period: PERIOD,
+    speeds: [0.05, 0.1, 0.25, 1, 10, 60, 600, 3600],
+    defaultSpeed: 1,
+    // 摆动一次 2 s（来回一趟）：锁 → 冲击 → 落，入瓦、出瓦各一次，正好是一格
+    minor: { period: PENDULUM_PERIOD, unit: '摆', steps: 40 },
+    moments: [
+      { t: 0.2, label: '锁 · 入瓦' },
+      { t: 0.52, label: '冲击 · 入瓦' },
+      { t: 0.65, label: '落 · 入瓦放开' },
+      { t: 1.0, label: '锁 · 出瓦' },
+      { t: 1.52, label: '冲击 · 出瓦' },
+    ],
+  },
   simulate,
   parts,
   chain: [

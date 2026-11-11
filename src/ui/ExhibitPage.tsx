@@ -106,8 +106,8 @@ function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
       if (e.key === ' ') {
         e.preventDefault()
         actions.togglePlay()
-      } else if (e.key === 'ArrowLeft') actions.step(-1)
-      else if (e.key === 'ArrowRight') actions.step(1)
+      } else if (e.key === 'ArrowLeft') actions.step(-1, e.shiftKey)
+      else if (e.key === 'ArrowRight') actions.step(1, e.shiftKey)
       else if (e.key === 'e' || e.key === 'E') actions.setExplode(st.explode > 0.5 ? 0 : 1)
       else if (e.key === 's' || e.key === 'S') actions.setSection({ on: !st.section.on })
     }

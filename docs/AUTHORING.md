@@ -108,7 +108,7 @@ solid: (k) => k.box([80, 520, 80]).subtract(mortiseCutter(k, {...}).translate([4
 | `meta` | 来自 `meta.ts`。`category`: `'mechanism' \| 'clock' \| 'joinery'`；`hypothesis: true` 时页面顶部明示「复原假说」；`order` 同类排序；`related` 相关展品 |
 | `intro` | 展品页「说明与出处」的导言陈述，`Claim[]` |
 | `controls` / `defaults` | 控件定义与初值。控件只影响 `simulate`，**不得影响几何** |
-| `timeline` | `{ kind: 'cyclic', period, speeds, defaultSpeed? }` 或 `{ kind: 'assembly', duration, speeds, defaultSpeed? }` |
+| `timeline` | `{ kind: 'cyclic', period, speeds, defaultSpeed?, minor?, moments? }` 或 `{ kind: 'assembly', duration, speeds, defaultSpeed? }`。`minor`（小循环）与 `moments`（关键瞬间）见下方「长周期展品的时间轴」 |
 | `simulate(t, c)` | 真值模型，纯函数。读数、位姿、协同链点亮全部只读它的返回值 |
 | `parts` | 见下 |
 | `chain` | 协同链，见下 |
@@ -117,6 +117,17 @@ solid: (k) => k.box([80, 520, 80]).subtract(mortiseCutter(k, {...}).translate([4
 | `view?` | `{ dir?: 相机相对目标的方向, target?: 取景中心 }`。默认自动取景（装配态与完全爆炸态都在画面内） |
 | `section?` | 默认剖切平面 `{ normal, offset, label? }`：保留 `normal·x ≥ offset` 一侧，相机应在被切掉的一侧。**榫卯必填** |
 | `audit?` | `{ contacts?: [a, b][], phases?, ignore?: string[] }`。机械必须列出接触零件对 |
+
+### 长周期展品的时间轴（`timeline.minor` / `timeline.moments`）
+
+周期很长（摆钟 12 小时、记里鼓车 6000 秒）时，主进度条一格就是几十秒，拖不到某一个节拍、某一齿。给 cyclic 时间轴加两个可选字段：
+
+| 字段 | 含义 |
+|---|---|
+| `minor: { period, unit, offset?, steps? }` | **小循环**：值得一眼看清的最小重复单元。`period` 秒（必须整除 `timeline.period`），`unit` 是计数单位（界面显示「第 n {unit}」，如 `'摆'`、`'圈'`、`'次起落'`）；`offset` 让格线错开，使「一次完整动作」落在同一格里而不被格线切开（默认 0）；`steps` 是单步按钮把一格切成几步（默认 40） |
+| `moments: { t, label }[]` | **关键瞬间**，界面里「跳到关键瞬间…」下拉一点即到（`0 ≤ t < period`）。用于「击鼓前一刻」「拨板刚压上碓尾」这类用滑块很难精确停住的时刻 |
+
+给了 `minor`：主进度条下多一条**细调条**，量程只覆盖「当前这个小循环」；单步按钮（← →）走 `minor.period / steps`，Shift+← → 整格走。小循环多于 50 个时，主进度条按小循环取整（跳到别的一格时保留格内位置，细调不丢）；否则主条仍是周期的 1/1000。长周期的时间读法自动换成「时:分:秒」。选法：摆钟取摆一次来回（2 s），记里鼓车取足轮一圈（T_F），水碓取一个碓的一次起落（周期 / 每碓拨板数）。不要为了「看得清」把 `defaultSpeed` 调到快进——默认速度应当是适合观察节拍的值。
 
 ### PartDef
 
@@ -212,6 +223,7 @@ describeExhibitAudits(exhibit)            // 机械可传 { phases: 120 }，榫�
 | 9 | `timeline`：cyclic 用 `period`，assembly 用 `duration`（秒），均可给 `defaultSpeed` | 装配进度固定为 [0,1]，需要另给播放时长 |
 | 10 | 坐标约定 Y 朝上、mm、rad；平面图 (u,v) = (x,−z) | PLAN 未规定，统一后审计与展台共用 |
 | 11 | `Claim.cite` 指向 `sources` 的键 | PLAN 写法未定 |
+| 12 | `timeline`（cyclic）新增可选的 `minor`（小循环）与 `moments`（关键瞬间） | 周期 12 小时的摆钟、6000 秒的记里鼓车，周期 1/1000 的滑块步长拖不到一个节拍；见第 5 节「长周期展品的时间轴」 |
 
 ## 10. 展台行为（不用写代码，但要知道）
 
@@ -220,7 +232,7 @@ describeExhibitAudits(exhibit)            // 机械可传 { phases: 120 }，榫�
 - 孤立：选中零件后可让其余零件半透明。
 - 剖切：GPU 裁切平面 + 模板缓冲补截面（截面带 45° 剖面线），零件运动时截面实时正确，几何不重建。展品给推荐平面；用户可改为 X/Y/Z、移动、反向。
 - `prefers-reduced-motion` 下机械展品默认暂停；榫卯展品默认停在「装好」状态，点播放从拆开开始装。
-- 键盘：空格播放/暂停，←→ 逐步，E 爆炸/复原，S 剖切，Esc 取消选中；所有功能也都有按钮。
+- 键盘：空格播放/暂停，←→ 逐步（有小循环时按小循环的 1/steps），Shift+←→ 整格走，E 爆炸/复原，S 剖切，Esc 取消选中；所有功能也都有按钮。
 
 ## 11. 本地预览与检查
 
