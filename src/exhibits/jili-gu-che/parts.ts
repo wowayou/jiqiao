@@ -540,7 +540,7 @@ export const parts: P[] = [
     material: 'wood-dark',
     solid: deck1,
     rest: { p: [0, 0, 0] },
-    explode: { dir: UP, distance: 1050, order: 10 },
+    explode: { dir: UP, distance: 950, order: 10 },
   },
   {
     ...T('ti-gan-xia'),
@@ -599,7 +599,7 @@ export const parts: P[] = [
     material: 'wood-dark',
     solid: frameUpper,
     rest: { p: [0, 0, 0] },
-    explode: { dir: UP, distance: 550, order: 12, with: 'deck-1' },
+    explode: { dir: UP, distance: 450, order: 12, with: 'deck-1' },
   },
   {
     ...T('zhuo'),
