@@ -244,3 +244,57 @@ test('相关展品：指向尚未制作的展品时不显示死链、不报错',
   await expect(page.locator('a[href="#/e/muniu-buxing"]')).toHaveCount(0)
   expect(errors).toEqual([])
 })
+
+test('鼠标停在零件上时就近显示零件名，移开后消失', async ({ page, isMobile }) => {
+  test.skip(isMobile, '触屏没有悬停')
+  await openExhibit(page, 'bai-zhong')
+  const box = (await page.locator('canvas').boundingBox())!
+  const tip = page.getByTestId('hover-tip')
+  await expect(tip).toBeHidden()
+  // 全景里背板（又高又宽）占据画面中部偏下
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.62)
+  await page.mouse.move(box.x + box.width * 0.5 + 2, box.y + box.height * 0.62 + 2)
+  await expect(tip).toBeVisible()
+  await expect(tip).not.toHaveText('')
+  await page.mouse.move(box.x + box.width * 0.95, box.y + box.height * 0.5)
+  await page.mouse.move(box.x + box.width * 0.95 + 2, box.y + box.height * 0.5)
+  await expect(tip).toBeHidden()
+})
+
+test('操作说明：「?」列出鼠标、触屏、键盘的操作', async ({ page }) => {
+  await openExhibit(page, 'bai-zhong')
+  await page.getByTestId('help').click()
+  const pop = page.getByRole('dialog', { name: '操作说明' })
+  await expect(pop).toContainText('双击零件凑近看')
+  await expect(pop).toContainText('Shift')
+  await expect(pop).toContainText('F')
+})
+
+test('手机宽度：标题完整可见、工具条不遮住模型、无溢出，控件都点得到', async ({ page, isMobile }) => {
+  test.skip(!isMobile, '仅手机宽度')
+  const errors = trackErrors(page)
+  await openExhibit(page, 'muniu-dulun')
+  // 长标题不截断：h1 没有被裁掉（scrollWidth ≤ clientWidth），也没有省略号
+  const h1 = page.locator('.header-title h1')
+  expect(await h1.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0)
+  expect(await h1.evaluate((el) => getComputedStyle(el).textOverflow)).not.toBe('ellipsis')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0)
+  // 展品自己的控件收在「更多」里，点开能操作
+  const more = page.getByTestId('more-tools')
+  await expect(more).toBeVisible()
+  await more.click()
+  await expect(page.getByRole('group', { name: '视角' })).toBeVisible()
+  // 每个可见按钮、滑块、下拉都在视口宽度内，且至少 28 px 高（点得到）
+  const bad = await page.evaluate(() => {
+    const out: string[] = []
+    for (const el of document.querySelectorAll<HTMLElement>('.stage-overlay button, .stage-overlay select, .stage-overlay input, .stage-views button, .timeline button, .timeline select, .timeline input, .site-header button, .site-header a')) {
+      const r = el.getBoundingClientRect()
+      if (r.width === 0 || r.height === 0) continue
+      if (r.right > window.innerWidth + 0.5 || r.left < -0.5) out.push(`${el.tagName}.${el.className} 越界 ${Math.round(r.left)}..${Math.round(r.right)}`)
+      if (r.height < 28) out.push(`${el.tagName}.${el.className} 太矮 ${Math.round(r.height)}`)
+    }
+    return out
+  })
+  expect(bad).toEqual([])
+  expect(errors).toEqual([])
+})

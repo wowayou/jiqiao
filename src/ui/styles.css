@@ -867,6 +867,9 @@ input[type='range'] {
   .toolgroup .field input[type='range'] {
     width: 80px;
   }
+  input[type='range'] {
+    min-height: 28px;
+  }
   .timeline {
     padding: var(--s2) var(--s3);
   }
@@ -896,6 +899,12 @@ input[type='range'] {
   .timeline-fine .tval {
     order: 2;
     flex: none;
+    min-width: 0;
+    margin-left: var(--s3);
+  }
+  .stage-views .btn {
+    padding: 0 var(--s2);
+    min-height: 30px;
   }
   .timeline-fine select {
     order: 3;

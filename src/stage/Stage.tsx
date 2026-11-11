@@ -167,20 +167,25 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
   const frame = useMemo(() => {
     const box = new Box3()
     const restBox = new Box3()
+    // 每个零件包围盒的 8 个角点（世界坐标）：取景按真实点云求「刚好装下」，比并集 AABB 的 8 角更紧
+    const points: Vector3[] = []
     const s = def.simulate(def.timeline.kind === 'assembly' ? 1 : 0, def.defaults)
     for (const ex of [1, 0]) {
       const sc = evaluateScene(def, s, ex)
       for (const it of insts) {
         const st = sc.get(it.inst.key)!
-        const bb = geoms.get(it.inst.part.id)!.surface.boundingBox!.clone()
+        // 爆炸时隐藏的示意物（粮粒、水流）不参与取景，否则画面会被不可见的东西撑大
+        if (!st.visible) continue
+        const local = geoms.get(it.inst.part.id)!.surface.boundingBox!
         const q = st.pose.q ? new Quaternion(...st.pose.q) : new Quaternion()
         const m = new Group()
         m.position.set(...st.pose.p)
         m.quaternion.copy(q)
         m.updateMatrixWorld()
-        bb.applyMatrix4(m.matrixWorld)
+        const bb = local.clone().applyMatrix4(m.matrixWorld)
         box.union(bb)
         if (ex === 0) restBox.union(bb)
+        for (let i = 0; i < 8; i++) points.push(new Vector3(i & 1 ? local.max.x : local.min.x, i & 2 ? local.max.y : local.min.y, i & 4 ? local.max.z : local.min.z).applyMatrix4(m.matrixWorld))
       }
     }
     const sphere = box.getBoundingSphere(new Sphere())
@@ -188,7 +193,7 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
     const center = def.view?.target
       ? new Vector3(...def.view.target)
       : restBox.getCenter(new Vector3()).lerp(box.getCenter(new Vector3()), 0.4)
-    return { box, sphere, center }
+    return { box, sphere, center, points }
   }, [def, insts, geoms])
 
   // —— 相机 ——
@@ -213,9 +218,8 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
     const right = new Vector3(0, 1, 0).cross(dir).normalize()
     const up = dir.clone().cross(right).normalize()
     let dist = 0
-    const { min, max } = frame.box
-    for (let i = 0; i < 8; i++) {
-      const p = new Vector3(i & 1 ? max.x : min.x, i & 2 ? max.y : min.y, i & 4 ? max.z : min.z).sub(center)
+    for (const pt of frame.points) {
+      const p = pt.clone().sub(center)
       const z = p.dot(dir)
       dist = Math.max(dist, z + Math.abs(p.dot(right)) / tanH, z + Math.abs(p.dot(up)) / tanVu)
     }

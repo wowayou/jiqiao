@@ -140,7 +140,7 @@ export default defineExhibit<ClockState, ClockControls>({
       size: 150,
       dir: [0.18, 0.22, 1],
       fade: FRONT_OF_MOVEMENT,
-      note: '表盘、前夹板和指针让开（半透明）：看擒纵叉瓦怎样锁住、放行擒纵轮',
+      note: '表盘、前夹板、指针让开：看叉瓦锁住、放行擒纵轮',
     },
     {
       id: 'train',
@@ -149,7 +149,7 @@ export default defineExhibit<ClockState, ClockControls>({
       size: 430,
       dir: [0.2, 0.25, 1],
       fade: FRONT_OF_MOVEMENT,
-      note: '表盘、前夹板和指针让开：重锤 → 大轮 → 中心轮 → 三轮 → 擒纵轮',
+      note: '表盘等让开：大轮 → 中心轮 → 三轮 → 擒纵轮',
     },
   ],
   section: { normal: [0, 0, -1], offset: -20, label: '过擒纵轮的前后剖面（切掉表盘与前夹板一侧）' },

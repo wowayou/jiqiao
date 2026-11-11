@@ -113,7 +113,7 @@ export default defineExhibit<DuiState, DuiControls>({
       // 在碓一与碓二之间切开，揭去碓二、碓三一侧：正对着看碓一的拨板怎样压下碓尾
       section: { normal: [0, 0, -1], offset: -800, label: '在碓一与碓二之间剖开，揭去碓二、碓三一侧' },
       fade: ['wheel', 'bearing', 'flume', 'flow', 'stream'],
-      note: '剖开、水轮与水槽让开：正对着看碓一的拨板怎样压下碓尾',
+      note: '剖开，水轮水槽让开：看拨板压下碓一的碓尾',
     },
     {
       id: 'strike',
@@ -122,7 +122,7 @@ export default defineExhibit<DuiState, DuiControls>({
       size: 800,
       dir: [0.4, 0.3, -1],
       fade: ['wheel', 'bearing', 'flume', 'flow', 'stream'],
-      note: '水轮、水槽让开：看碓一的碓头落进臼里砸谷粒',
+      note: '水轮水槽让开：看碓头落进臼里砸谷粒',
     },
   ],
   section: { normal: [0, 0, -1], offset: -1200, label: '剖掉碓三一侧，露出碓二的拨板与碓尾' },

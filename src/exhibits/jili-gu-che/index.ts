@@ -187,7 +187,7 @@ export default defineExhibit<CarState, CarControls>({
       dir: [0.35, 1, -0.55],
       section: true,
       fade: ['wheel-left', 'wheel-right'],
-      note: '水平剖开、揭去台板，足轮让开：从上往下看整串齿轮',
+      note: '剖开、揭去台板，足轮让开：从上看整串齿轮',
     },
     {
       id: 'xuanfeng',
@@ -198,7 +198,7 @@ export default defineExhibit<CarState, CarControls>({
       // 只留到 y=1330：揭去小平轮、上平轮，露出铜旋风轮的三根拨齿怎样拨中平轮的木销
       section: { normal: [0, -1, 0], offset: -1330, label: '水平剖开，揭去上面各层，只留旋风轮与中平轮所在的一层' },
       fade: ['wheel-left', 'wheel-right', 'frame-lower'],
-      note: '揭去上层、足轮与车架让开：看旋风轮三根拨齿一拨一停地推中平轮',
+      note: '揭去上层，足轮车架让开：看旋风轮拨中平轮',
     },
     {
       id: 'drum',
@@ -207,7 +207,7 @@ export default defineExhibit<CarState, CarControls>({
       size: 650,
       dir: [0.45, 0.6, -0.8],
       fade: ['frame-upper'],
-      note: '下层木人的槌与鼓：提杆被拨子顶高、越过坡顶落下的地方',
+      note: '上层车架让开：看下层木人的槌落在鼓面上',
     },
   ],
   audit: {

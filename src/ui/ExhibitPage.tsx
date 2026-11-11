@@ -160,7 +160,7 @@ function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
         </div>
         <p className="stage-tip">
           <span className="tip-fine">拖动旋转 · 滚轮朝指针处缩放 · 双击零件凑近看 · 点「?」看全部操作</span>
-          <span className="tip-touch">单指拖动旋转 · 双指缩放与平移 · 双击零件凑近看 · 点「?」看全部操作</span>
+          <span className="tip-touch">单指旋转 · 双指缩放平移 · 双击零件凑近看 · 「?」更多</span>
         </p>
         <Timeline def={def} />
         <Readouts def={def} />

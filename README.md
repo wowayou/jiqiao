@@ -22,7 +22,7 @@ src/
   exhibit/      展品契约（types）、场景求值（scene）、注册表（registry，import.meta.glob 自动发现）、
                 结构校验（validate）、几何审计（audit）、出处审计（claims，仅 Node）、测试入口（testing）
   stage/        三维展台：状态（store）、材质（工笔风格、单一强调色）、几何构建、拾取、
-                爆炸、带截面的剖切（stencil）、协同链高亮、取景
+                爆炸、带截面的剖切（stencil）、协同链高亮、取景与预设机位、小循环细调时间轴
   ui/           页面：展厅首页、展品页（展台 + 时间轴 + 读数 + 协同链/零件/说明面板）、主题、样式令牌
   exhibits/<id>/  每个展品一个目录：meta.ts、model.ts、parts.ts、content.ts、index.ts、*.test.ts
 e2e/            Playwright：按注册表遍历全部展品
