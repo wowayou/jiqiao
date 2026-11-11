@@ -125,7 +125,7 @@ solid: (k) => k.box([80, 520, 80]).subtract(mortiseCutter(k, {...}).translate([4
 | `id` | 展品内唯一，不得含 `#` 或 `:` |
 | `name` / `role` | 中文名；一句话说它在本模型里做什么（只写功能，史实写进 claims） |
 | `group` | `'base' \| 'structure' \| 'mechanism' \| 'control' \| 'subject'`（subject = 被加工的东西，如粮粒） |
-| `material` | `wood-light/wood-dark/wood-end/stone/stone-dark/iron/brass/rope/grain/flour/water` |
+| `material` | `wood-light/wood-dark/wood-end/stone/stone-dark/iron/steel/brass/rope/hide/cloth/earth/lacquer/dial/grain/flour/water`。不够用时不要自己加，写进交付说明 |
 | `solid(k)` | 局部坐标下的实体，只建一次 |
 | `rest` | 装配完成、初始状态的位姿 |
 | `pose?(s, copy)` | 运动零件的位姿（世界坐标）。没有就固定在 `rest` |

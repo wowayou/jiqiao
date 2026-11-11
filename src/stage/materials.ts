@@ -31,6 +31,12 @@ export const PALETTE: Record<MaterialKey, { color: string; roughness: number; me
   grain: { color: '#d9a441', roughness: 0.7, metalness: 0 },
   flour: { color: '#efe6d0', roughness: 1, metalness: 0 },
   water: { color: '#7ea6b8', roughness: 0.3, metalness: 0 },
+  steel: { color: '#8b8f96', roughness: 0.4, metalness: 0.55 },
+  hide: { color: '#e3d3b0', roughness: 0.9, metalness: 0 },
+  cloth: { color: '#c9bb9a', roughness: 1, metalness: 0 },
+  earth: { color: '#b8a888', roughness: 1, metalness: 0 },
+  lacquer: { color: '#3a2e2a', roughness: 0.35, metalness: 0.05 },
+  dial: { color: '#f1ece0', roughness: 0.8, metalness: 0 },
 }
 
 export type Variant = 'normal' | 'accent' | 'faded'

@@ -43,6 +43,12 @@ export type MaterialKey =
   | 'grain'
   | 'flour'
   | 'water'
+  | 'steel'
+  | 'hide'
+  | 'cloth'
+  | 'earth'
+  | 'lacquer'
+  | 'dial'
 
 export type PartGroup = 'base' | 'structure' | 'mechanism' | 'control' | 'subject'
 
