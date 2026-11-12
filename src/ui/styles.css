@@ -442,6 +442,17 @@ input[type='range'] {
 .toolgroup .field input[type='range'] {
   width: 110px;
 }
+/* 工具条统一：同一组里按钮、标签、下拉同高同字号，图标与文字垂直居中 */
+.toolgroup .field > span {
+  color: var(--ink-2);
+}
+.toolgroup .btn,
+.toolgroup select.select {
+  min-height: var(--ctl-h);
+}
+.icon {
+  display: block;
+}
 .stage-status {
   position: absolute;
   left: 50%;
@@ -871,8 +882,9 @@ input[type='range'] {
 .chain-step button.chain-head {
   display: block;
   width: 100%;
+  min-height: 36px;
   text-align: left;
-  padding: var(--s3) var(--s3) var(--s3) 44px;
+  padding: 7px var(--s3) 7px 44px;
   border: 1px solid var(--line);
   border-radius: var(--r2);
   background: var(--paper-2);
@@ -883,7 +895,7 @@ input[type='range'] {
   content: counter(chain);
   position: absolute;
   left: 12px;
-  top: 12px;
+  top: 7px;
   width: 22px;
   height: 22px;
   border-radius: 50%;
@@ -895,11 +907,49 @@ input[type='range'] {
 }
 .chain-look {
   position: absolute;
-  right: var(--s2);
-  top: var(--s2);
+  right: calc(var(--s2) + var(--ctl-h) + var(--s1));
+  top: 5px;
   min-height: 26px;
   padding: 0 var(--s2);
   font-size: var(--fs-0);
+}
+/* 折叠：标题行常在；说明在 .chain-body 里，用 grid 行高 0fr → 1fr 做 200ms 的展开 */
+.chain-toggle {
+  position: absolute;
+  right: var(--s2);
+  top: 5px;
+  width: var(--ctl-h);
+  min-height: 26px;
+  height: 26px;
+  padding: 0;
+}
+.chain-chevron {
+  width: 6px;
+  height: 6px;
+  border: solid var(--ink-2);
+  border-width: 0 1.5px 1.5px 0;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 0.2s;
+}
+.chain-step.is-open .chain-chevron {
+  transform: translateY(1px) rotate(-135deg);
+}
+.chain-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition:
+    grid-template-rows 0.2s ease,
+    visibility 0.2s;
+}
+.chain-step.is-open .chain-body {
+  grid-template-rows: 1fr;
+  visibility: visible;
+}
+.chain-body-in {
+  display: block;
+  min-height: 0;
+  overflow: hidden;
 }
 .chain-step.is-active button.chain-head {
   border-color: var(--accent);
@@ -915,21 +965,28 @@ input[type='range'] {
   box-shadow: inset 3px 0 0 var(--ink);
 }
 .chain-title {
-  padding-right: 64px;
+  min-height: 22px;
+  padding-right: 120px;
   display: flex;
   align-items: center;
   gap: var(--s2);
   font-weight: 600;
 }
 .chain-live {
+  flex: none;
+  white-space: nowrap;
   font-size: var(--fs-0);
   font-weight: 400;
   color: var(--accent);
 }
 .chain-text {
+  display: block;
   margin: var(--s1) 0 0;
   font-size: var(--fs-1);
   color: var(--ink-2);
+}
+.chain-body-in > .cite {
+  margin-top: var(--s1);
 }
 .locks {
   display: flex;
@@ -1195,6 +1252,17 @@ input[type='range'] {
     padding: 0 var(--s2);
     min-height: 30px;
   }
+  /* 手机：读数两列，折叠开关另起一行靠右（上面） */
+  .readouts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .readouts .readout-toggle {
+    order: -1;
+    justify-self: end;
+  }
+  .readout-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .timeline-fine select {
     order: 3;
   }
@@ -1209,6 +1277,53 @@ input[type='range'] {
   }
   .home-hero h1 {
     font-size: var(--fs-4);
+  }
+}
+
+/* —— 触屏：点击目标不小于 44 px（只在 pointer: coarse 下放大，桌面按钮不动） —— */
+@media (pointer: coarse) {
+  :root {
+    --ctl-h: 44px;
+  }
+  .stage-views .btn,
+  .readout-toggle,
+  .chain-look,
+  .chain-toggle {
+    min-height: var(--ctl-h);
+  }
+  .chain-toggle {
+    height: var(--ctl-h);
+  }
+  .chain-look,
+  .chain-toggle {
+    top: 0;
+  }
+  .chain-step button.chain-head {
+    min-height: var(--ctl-h);
+    padding-top: 11px;
+    padding-bottom: 11px;
+  }
+  .chain-step button.chain-head::before {
+    top: 11px;
+  }
+  input[type='range'],
+  .timeline input[type='range'] {
+    min-height: var(--ctl-h);
+  }
+  .field:has(input[type='checkbox']) {
+    min-height: var(--ctl-h);
+  }
+  .field input[type='checkbox'] {
+    width: 22px;
+    height: 22px;
+  }
+  .tab,
+  .trace-notes summary {
+    min-height: var(--ctl-h);
+  }
+  .trace-notes summary {
+    display: flex;
+    align-items: center;
   }
 }
 

@@ -782,9 +782,9 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
 
   const selected = useStage((s) => s.selected)
   const pinned = useStage((s) => s.pinnedStep)
-  const activeSteps = useStage((s) => s.activeSteps)
+  // 特征标注只在选中、点住或讲解到这一环（讲解会点住这一环）时显示；实时点亮的环只给零件着强调色，不冒标注
   const labels = useMemo(() => {
-    const f = computeFocus(def, selected, pinned, selected || pinned ? [] : activeSteps)
+    const f = computeFocus(def, selected, pinned, [])
     const out: { it: Inst; feature: FeatureDef }[] = []
     for (const ref of f.features) {
       const [pid, fid] = splitRef(ref)
@@ -794,7 +794,7 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
       if (feature && it) out.push({ it, feature })
     }
     return out
-  }, [def, selected, pinned, activeSteps, insts])
+  }, [def, selected, pinned, insts])
 
   return (
     <>

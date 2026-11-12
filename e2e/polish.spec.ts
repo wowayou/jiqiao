@@ -85,3 +85,144 @@ test('展品页加载与讲解无控制台错误（第一组改动后）', async
   await page.getByTestId('tour-next').click()
   expect(errors).toEqual([])
 })
+
+// —— 第二组：读数出处标记、协同链折叠、特征标注、工具条与触屏目标 ——
+
+async function pauseAt(page: Page, t: number) {
+  const play = page.getByTestId('play')
+  if ((await play.getAttribute('aria-pressed')) === 'true') await play.click()
+  await expect(play).toHaveAttribute('aria-pressed', 'false')
+  const scrub = page.getByTestId('scrub')
+  await scrub.evaluate((el, v) => {
+    const i = el as HTMLInputElement
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(i, String(v))
+    i.dispatchEvent(new Event('input', { bubbles: true }))
+    i.dispatchEvent(new Event('change', { bubbles: true }))
+  }, t)
+}
+
+test('读数：栅格里每项都有一字出处标记，全称在 aria-label 与 title；图例在「说明与出处」页', async ({ page }) => {
+  await openExhibit(page, 'bai-zhong')
+  const toggle = page.getByTestId('readouts-toggle')
+  if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click()
+  const cells = page.locator('.readout-grid > div')
+  const n = await cells.count()
+  expect(n).toBeGreaterThanOrEqual(6)
+  // 每格：标签 + 数值 + 恰好一个一字标记
+  expect(await page.locator('.readout-grid .prov-mark').count()).toBe(n)
+  const marks = await page.locator('.readout-grid .prov-mark').evaluateAll((els) =>
+    els.map((e) => ({ text: e.textContent, label: e.getAttribute('aria-label'), title: e.getAttribute('title'), prov: e.getAttribute('data-prov') })),
+  )
+  const FULL: Record<string, [string, string]> = { source: ['史', '史料'], reconstruction: ['复', '通行复原'], hypothesis: ['假', '假说'], model: ['设', '本站设定'], calc: ['算', '计算所得'] }
+  for (const m of marks) {
+    expect(m.text!.length).toBe(1)
+    const [ch, full] = FULL[m.prov!]
+    expect(m.text).toBe(ch)
+    expect(m.label).toContain(full)
+    expect(m.title).toContain(full)
+  }
+  // 数值用等宽数字
+  expect(await page.locator('.readout-grid dd').first().evaluate((e) => getComputedStyle(e).fontVariantNumeric)).toContain('tabular-nums')
+  // 图例：五类各有一字标记与全称
+  await page.getByRole('tab', { name: '说明与出处' }).click()
+  const legend = page.getByTestId('prov-legend')
+  for (const [ch, full] of Object.values(FULL)) {
+    const item = legend.locator('li', { hasText: full })
+    await expect(item).toHaveCount(1)
+    await expect(item.locator('.prov-mark')).toHaveText(ch)
+  }
+})
+
+test('协同链：默认只展开「此刻」的一环；点标题行（固定）展开；右侧箭头按钮（aria-expanded）单独展开 / 收起，键盘可达', async ({ page }) => {
+  await openExhibit(page, 'bai-zhong')
+  await pauseAt(page, 0)
+  const chain = page.getByTestId('chain')
+  const steps = chain.locator('li.chain-step')
+  const total = await steps.count()
+  // 展开的恰好是此刻点亮的环；其余只剩标题行
+  await expect.poll(async () => (await chain.locator('[data-active="true"]').count()) > 0).toBe(true)
+  const openIds = await chain.locator('li[data-open="true"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-step')))
+  const activeIds = await chain.locator('li[data-active="true"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-step')))
+  expect(openIds.sort()).toEqual(activeIds.sort())
+  expect(openIds.length).toBeLessThan(total)
+  // 折叠的环：说明不可见；展开的环：说明可见
+  const sid = (await chain.locator('li[data-open="false"]').first().getAttribute('data-step'))!
+  const collapsed = chain.locator(`li[data-step="${sid}"]`)
+  await expect(collapsed.locator('.chain-text')).toBeHidden()
+  await expect(chain.locator('li[data-open="true"] .chain-text').first()).toBeVisible()
+  // 箭头按钮：键盘聚焦 + 回车展开
+  const btn = chain.locator(`[data-toggle="${sid}"]`)
+  await expect(btn).toHaveAttribute('aria-expanded', 'false')
+  await btn.focus()
+  await page.keyboard.press('Enter')
+  await expect(btn).toHaveAttribute('aria-expanded', 'true')
+  await expect(collapsed.locator('.chain-text')).toBeVisible()
+  await page.keyboard.press('Enter')
+  await expect(btn).toHaveAttribute('aria-expanded', 'false')
+  await expect(collapsed.locator('.chain-text')).toBeHidden()
+  // 点标题行：固定这一环，同时展开
+  const oid = (await chain.locator('li[data-open="false"]').last().getAttribute('data-step'))!
+  const other = chain.locator(`li[data-step="${oid}"]`)
+  await other.locator('button.chain-head').click()
+  await expect(other.locator('button.chain-head')).toHaveAttribute('aria-pressed', 'true')
+  await expect(other).toHaveAttribute('data-open', 'true')
+  await expect(chain.locator(`[data-toggle="${oid}"]`)).toHaveAttribute('aria-expanded', 'true')
+  await expect(other.locator('.chain-text')).toBeVisible()
+})
+
+test('特征标注：实时点亮的环不冒标注；点住这一环才显示', async ({ page }) => {
+  await openExhibit(page, 'jili-gu-che')
+  await pauseAt(page, 1)
+  await expect.poll(async () => page.getByTestId('chain').locator('[data-active="true"]').count()).toBeGreaterThan(0)
+  await page.waitForTimeout(800)
+  await expect(page.locator('.feature-pin')).toHaveCount(0)
+  // 逐环点住，直到出现带特征的环
+  const heads = page.getByTestId('chain').locator('button.chain-head')
+  const n = await heads.count()
+  let found = false
+  for (let i = 0; i < n && !found; i++) {
+    await heads.nth(i).click()
+    await expect(heads.nth(i)).toHaveAttribute('aria-pressed', 'true')
+    await page.waitForTimeout(400)
+    found = (await page.locator('.feature-pin').count()) > 0
+  }
+  expect(found).toBe(true)
+})
+
+test('工具条：每个按钮都有提示（title），图标按钮是统一的 SVG 图标', async ({ page, isMobile }) => {
+  await openExhibit(page, 'muniu-dulun')
+  if (isMobile) await page.getByTestId('more-tools').click()
+  const bad = await page.evaluate(() => {
+    const out: string[] = []
+    for (const el of document.querySelectorAll<HTMLElement>('.stage-overlay button, .stage-overlay select, .stage-overlay label, .stage-views button')) {
+      const r = el.getBoundingClientRect()
+      if (r.width === 0) continue
+      const hasTip = el.getAttribute('title') || el.closest('[title]')
+      if (!hasTip) out.push(`${el.tagName} ${el.textContent?.trim() || el.getAttribute('aria-label')} 没有 title`)
+    }
+    return out
+  })
+  expect(bad).toEqual([])
+  const group = page.getByRole('group', { name: '视角' })
+  await expect(group.locator('button svg.icon')).toHaveCount(4)
+})
+
+test('点击目标：触屏（pointer: coarse）下按钮、下拉、滑块不小于 44 px；桌面不撑大', async ({ page, isMobile }) => {
+  await openExhibit(page, 'muniu-dulun')
+  const coarse = await page.evaluate(() => window.matchMedia('(pointer: coarse)').matches)
+  // 手机项目开了触屏模拟，必须命中 coarse；桌面项目必须不命中
+  expect(coarse).toBe(isMobile)
+  if (isMobile) await page.getByTestId('more-tools').click()
+  const sizes = await page.evaluate(() => {
+    const out: { what: string; h: number }[] = []
+    for (const el of document.querySelectorAll<HTMLElement>('button, select, input[type="range"], summary')) {
+      const r = el.getBoundingClientRect()
+      if (r.width === 0 || r.height === 0) continue
+      out.push({ what: `${el.tagName}.${el.className} ${el.textContent?.trim().slice(0, 12) ?? ''}`, h: Math.round(r.height * 10) / 10 })
+    }
+    return out
+  })
+  expect(sizes.length).toBeGreaterThan(10)
+  if (coarse) expect(sizes.filter((s) => s.h < 43.5)).toEqual([])
+  else expect(sizes.filter((s) => s.h > 40 && /\bbtn\b/.test(s.what) && !/chain-head/.test(s.what))).toEqual([])
+})

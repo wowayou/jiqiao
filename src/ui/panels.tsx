@@ -153,6 +153,28 @@ function MomentsSelect({ moments }: { moments: TimeMoment[] }) {
   )
 }
 
+/** 工具条图标：16 px、1.5 px 线宽、圆头，与文字按钮同高同色（继承 currentColor） */
+function Icon({ name }: { name: 'ccw' | 'cw' | 'plus' | 'minus' }) {
+  return (
+    <svg className="icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false">
+      {name === 'ccw' && (
+        <>
+          <path d="M3.2 8a4.8 4.8 0 1 0 1.5-3.5" />
+          <path d="M3 2.2v3h3" />
+        </>
+      )}
+      {name === 'cw' && (
+        <>
+          <path d="M12.8 8a4.8 4.8 0 1 1-1.5-3.5" />
+          <path d="M13 2.2v3h-3" />
+        </>
+      )}
+      {name === 'plus' && <path d="M8 3v10M3 8h10" />}
+      {name === 'minus' && <path d="M3 8h10" />}
+    </svg>
+  )
+}
+
 // —— 展台上的工具条：爆炸、剖切、孤立、视角、展品控件 ——
 export function Toolbar({ def }: { def: AnyExhibit }) {
   const explode = useStage((s) => s.explode)
@@ -177,7 +199,7 @@ export function Toolbar({ def }: { def: AnyExhibit }) {
         >
           {touring ? '退出讲解' : '讲解'}
         </button>
-        <label className="field">
+        <label className="field" title="拖动拆开：零件沿装配方向分离（E 键一键拆开 / 复原）">
           <span>爆炸</span>
           <input
             type="range"
@@ -210,7 +232,7 @@ export function Toolbar({ def }: { def: AnyExhibit }) {
         >
           孤立
         </button>
-        <button type="button" className="btn more-btn" aria-expanded={more} onClick={() => setMore(!more)} data-testid="more-tools">
+        <button type="button" className="btn more-btn" aria-expanded={more} onClick={() => setMore(!more)} data-testid="more-tools" title={more ? '收起展品控件与视角按钮' : '展开展品控件与视角按钮'}>
           {more ? '收起' : '更多'}
         </button>
       </div>
@@ -221,13 +243,14 @@ export function Toolbar({ def }: { def: AnyExhibit }) {
             value={section.axis}
             onChange={(e) => a.setSection({ axis: e.target.value as typeof section.axis, offset: 0, custom: null })}
             aria-label="剖切平面"
+            title="选择剖切平面"
           >
             <option value="default">{section.custom || def.section ? '推荐剖面' : 'Z 向剖面'}</option>
             <option value="x">沿 X 切</option>
             <option value="y">沿 Y 切（水平）</option>
             <option value="z">沿 Z 切</option>
           </select>
-          <label className="field">
+          <label className="field" title="剖切平面的位置（毫米）">
             <span>位置</span>
             <input
               type="range"
@@ -239,7 +262,7 @@ export function Toolbar({ def }: { def: AnyExhibit }) {
               aria-label="剖切位置（mm）"
             />
           </label>
-          <button type="button" className="btn" aria-pressed={section.flip} onClick={() => a.setSection({ flip: !section.flip })}>
+          <button type="button" className="btn" aria-pressed={section.flip} onClick={() => a.setSection({ flip: !section.flip })} title="切掉平面的另一侧">
             反向
           </button>
         </div>
@@ -248,12 +271,12 @@ export function Toolbar({ def }: { def: AnyExhibit }) {
         <div className="toolgroup tool-more">
           {def.controls.map((c) =>
             c.kind === 'toggle' ? (
-              <label key={c.key} className="field">
+              <label key={c.key} className="field" title={c.label}>
                 <input type="checkbox" checked={Boolean(controls[c.key])} onChange={(e) => a.setControl(c.key, e.target.checked)} />
                 <span>{c.label}</span>
               </label>
             ) : c.kind === 'range' ? (
-              <label key={c.key} className="field">
+              <label key={c.key} className="field" title={c.label}>
                 <span>{c.label}</span>
                 <input
                   type="range"
@@ -269,7 +292,7 @@ export function Toolbar({ def }: { def: AnyExhibit }) {
                 </span>
               </label>
             ) : (
-              <label key={c.key} className="field">
+              <label key={c.key} className="field" title={c.label}>
                 <span>{c.label}</span>
                 <select className="select" value={String(controls[c.key])} onChange={(e) => a.setControl(c.key, e.target.value)}>
                   {c.options.map((o) => (
@@ -284,17 +307,17 @@ export function Toolbar({ def }: { def: AnyExhibit }) {
         </div>
       )}
       <div className="toolgroup tool-more" role="group" aria-label="视角">
-        <button type="button" className="btn btn-icon" onClick={() => a.nudgeView('orbit', -0.3)} aria-label="向左转">
-          ⟲
+        <button type="button" className="btn btn-icon" onClick={() => a.nudgeView('orbit', -0.3)} aria-label="向左转" title="视角向左转一点">
+          <Icon name="ccw" />
         </button>
-        <button type="button" className="btn btn-icon" onClick={() => a.nudgeView('orbit', 0.3)} aria-label="向右转">
-          ⟳
+        <button type="button" className="btn btn-icon" onClick={() => a.nudgeView('orbit', 0.3)} aria-label="向右转" title="视角向右转一点">
+          <Icon name="cw" />
         </button>
-        <button type="button" className="btn btn-icon" onClick={() => a.nudgeView('zoom', 0.8)} aria-label="放大">
-          ＋
+        <button type="button" className="btn btn-icon" onClick={() => a.nudgeView('zoom', 0.8)} aria-label="放大" title="拉近">
+          <Icon name="plus" />
         </button>
-        <button type="button" className="btn btn-icon" onClick={() => a.nudgeView('zoom', 1.25)} aria-label="缩小">
-          －
+        <button type="button" className="btn btn-icon" onClick={() => a.nudgeView('zoom', 1.25)} aria-label="缩小" title="拉远">
+          <Icon name="minus" />
         </button>
       </div>
     </div>
@@ -752,6 +775,13 @@ export function ChainPanel({ def }: { def: AnyExhibit }) {
       /* 无关紧要 */
     }
   }, [tourIndex])
+  // 折叠：「此刻」的一环、点住的一环、讲解到的一环展开，其余只留标题行；观众点右侧的箭头可单独展开 / 收起某一环
+  const [manual, setManual] = useState<Record<string, boolean>>({})
+  // 点住一环、讲解切到一环时，这一环以「应当展开」为准，不被之前手动收起的状态拦住
+  useEffect(() => {
+    const id = pinned ?? (tourIndex >= 0 ? def.chain[tourIndex].id : null)
+    if (id) setManual((m) => (id in m ? Object.fromEntries(Object.entries(m).filter(([k]) => k !== id)) : m))
+  }, [pinned, tourIndex, def])
   const isJoinery = def.meta.category === 'joinery'
   // 榫卯：逐环累计「已锁住」
   const cumulative = useMemo(() => {
@@ -786,8 +816,9 @@ export function ChainPanel({ def }: { def: AnyExhibit }) {
       <ol className="chain" data-testid="chain" ref={listRef}>
         {def.chain.map((st, i) => {
           const isActive = active.includes(st.id)
+          const open = manual[st.id] ?? (isActive || pinned === st.id || tourIndex === i)
           return (
-            <li key={st.id} className={`chain-step${isActive ? ' is-active' : ''}`} data-step={st.id} data-active={isActive}>
+            <li key={st.id} className={`chain-step${isActive ? ' is-active' : ''}${open ? ' is-open' : ''}`} data-step={st.id} data-active={isActive} data-open={open}>
               <button
                 type="button"
                 className="chain-head"
@@ -811,25 +842,41 @@ export function ChainPanel({ def }: { def: AnyExhibit }) {
                   {st.title}
                   {isActive && <span className="chain-live">● 此刻</span>}
                 </span>
-                <p className="chain-text">
-                  <ProvTag p={st.provenance} />
-                  {st.text}
-                </p>
-                {st.cite && def.sources[st.cite] && (
-                  <span className="cite">
-                    出处：{def.sources[st.cite].title}：「{def.sources[st.cite].quote}」
-                  </span>
-                )}
-                {isJoinery && st.locks && (
-                  <span className="locks" aria-label="这一步之后已锁住的方向">
-                    {cumulative[i].map((d) => (
-                      <span key={d} className="lock" style={st.locks!.includes(d) ? { borderColor: 'var(--ink)', fontWeight: 600 } : undefined}>
-                        {DOF_LABEL[d]}
+                <span className="chain-body" id={`chain-body-${st.id}`}>
+                  <span className="chain-body-in">
+                    <span className="chain-text">
+                      <ProvTag p={st.provenance} />
+                      {st.text}
+                    </span>
+                    {st.cite && def.sources[st.cite] && (
+                      <span className="cite">
+                        出处：{def.sources[st.cite].title}：「{def.sources[st.cite].quote}」
                       </span>
-                    ))}
-                    {st.locksProvenance && <ProvTag p={st.locksProvenance} />}
+                    )}
+                    {isJoinery && st.locks && (
+                      <span className="locks" aria-label="这一步之后已锁住的方向">
+                        {cumulative[i].map((d) => (
+                          <span key={d} className="lock" style={st.locks!.includes(d) ? { borderColor: 'var(--ink)', fontWeight: 600 } : undefined}>
+                            {DOF_LABEL[d]}
+                          </span>
+                        ))}
+                        {st.locksProvenance && <ProvTag p={st.locksProvenance} />}
+                      </span>
+                    )}
                   </span>
-                )}
+                </span>
+              </button>
+              <button
+                type="button"
+                className="btn chain-toggle"
+                aria-expanded={open}
+                aria-controls={`chain-body-${st.id}`}
+                aria-label={`${open ? '收起' : '展开'}：${st.title}`}
+                title={open ? '收起这一环的说明' : '展开这一环的说明'}
+                onClick={() => setManual((m) => ({ ...m, [st.id]: !open }))}
+                data-toggle={st.id}
+              >
+                <span aria-hidden className="chain-chevron" />
               </button>
               <button
                 type="button"
@@ -978,9 +1025,13 @@ export function IntroPanel({ def }: { def: AnyExhibit }) {
         </ol>
       )}
       <h3 style={{ fontSize: 'var(--fs-1)', marginTop: 24 }}>出处类别</h3>
-      <ul className="claims">
+      <p className="panel-note" style={{ marginTop: 4 }}>
+        读数栏里的出处只用一个字标记（鼠标停上去显示全称）：
+      </p>
+      <ul className="claims" data-testid="prov-legend">
         {(Object.keys(PROVENANCE_LABEL) as (keyof typeof PROVENANCE_LABEL)[]).map((p) => (
           <li key={p}>
+            <ProvMark p={p} />
             <ProvTag p={p} />
             {
               {
