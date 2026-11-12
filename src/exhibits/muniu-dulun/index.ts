@@ -114,10 +114,11 @@ export default defineExhibit<DulunState, DulunControls>({
       note: '与人手此消彼长：人手接过去多少，支脚就卸掉多少；推行时为零。',
     },
   ],
-  // 车把只在抬平、放把时动，车轮只在推行时转：其余时刻拖不动（此刻它们本来就不动）
+  // 车把只在抬平、放把时动，车轮只在推行时转。停着的时候去拖：跳到它开始顺着手动的那一刻（seek，模型秒）——
+  // 停车时往上提车把 = 跳过「加力」直接抬；停车时推车轮 = 跳到推行。
   drive: [
-    { part: 'handle', hint: '抬起 / 放下车把', anchor: [GRIP[0], GRIP[1], 0] },
-    { part: 'wheel', hint: '推着车轮走' },
+    { part: 'handle', hint: '抬起 / 放下车把', anchor: [GRIP[0], GRIP[1], 0], seek: 5 },
+    { part: 'wheel', hint: '推着车轮走', seek: 8 },
   ],
   audit: {
     phases: 120,

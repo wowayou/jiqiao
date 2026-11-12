@@ -521,14 +521,21 @@ export function Traces({ def }: { def: AnyExhibit }) {
   const minor = minorOf(def)
   const domain = traceDomain(def, t)
   const key = traceKey(def, domain, controls)
-  const [samples, setSamples] = useState<TraceSamples | null>(() => cachedTraces(key) ?? null)
-  // 换了一段（下一个小循环）或控件值变了：分片重取，取完之前先画上一段（标为「取样中」）
+  const [fetched, setFetched] = useState<TraceSamples | null>(null)
+  // 取过的段直接从缓存拿（不经过状态）；没取过的先画上一段（标为「取样中」）
+  const samples = cachedTraces(key) ?? fetched
+  // 换了一段（下一个小循环）或控件值变了：分片重取。取样放到下一个任务里，不在副作用里同步 setState——
+  // 快进时（摆钟讲解「重锤供能」每帧跨过许多个小循环）每帧都换段，同步更新会一帧套一帧，React 报「更新深度超限」。
   useEffect(() => {
     if (traces.length === 0) return
     let alive = true
-    const cancel = sampleTracesAsync(def, controls, domain, (r) => alive && setSamples(r))
+    let cancel = () => {}
+    const timer = setTimeout(() => {
+      cancel = sampleTracesAsync(def, controls, domain, (r) => alive && setFetched(r))
+    }, 0)
     return () => {
       alive = false
+      clearTimeout(timer)
       cancel()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

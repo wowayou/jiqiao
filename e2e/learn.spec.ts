@@ -86,6 +86,26 @@ test('讲解：推导不到的环（第 100 圈的击鼓）按展品写的时间
   await expect(page.getByTestId('fine-name')).toContainText(/第 (100|101) 圈/)
 })
 
+// 周期很长的两个展品：有的环快进几千倍（摆钟「重锤供能」），每帧跨过许多个小循环，迹线跟着每帧换段。
+// 从头走到尾，任何一环都不许有控制台错误（曾在这里触发 React 的「更新深度超限」）。
+for (const id of ['bai-zhong', 'jili-gu-che']) {
+  test(`讲解：${id} 从头走到尾没有控制台错误`, async ({ page }) => {
+    test.setTimeout(120_000)
+    const errors = trackErrors(page)
+    await openExhibit(page, id)
+    await page.getByTestId('tour-start').click()
+    const n = Number((await page.getByTestId('tour-count').innerText()).split('/')[1])
+    for (let i = 0; i < n; i++) {
+      await expect(page.getByTestId('tour-count')).toHaveText(`${i + 1} / ${n}`)
+      await expect(page.getByTestId('tour-play')).toHaveAttribute('aria-pressed', 'true')
+      // 让这一环循环一会儿
+      await page.waitForTimeout(1200)
+      if (i < n - 1) await page.getByTestId('tour-next').click()
+    }
+    expect(errors).toEqual([])
+  })
+}
+
 test('讲解：减少动效时不自动循环，给播放按钮；相机直接到位', async ({ browser }) => {
   const ctx = await browser.newContext({ reducedMotion: 'reduce', viewport: { width: 1440, height: 900 }, baseURL: `http://localhost:${process.env.E2E_PORT ?? 5183}` })
   const page = await ctx.newPage()
@@ -252,6 +272,26 @@ test('亲手驱动：透榫的横料只在第一步动——楔打着时拖不�
   const b = await anchorOf(page, 'rail')
   await dragOnCanvas(page, isMobile, b, 40, 0)
   await expect.poll(() => scrubT(page)).not.toBe(0.25)
+})
+
+test('亲手驱动：独轮车停着时按住提示圈往上提车把——跳过「加力」进入「抬平」，车把跟着手抬起来', async ({ page, isMobile }) => {
+  const errors = trackErrors(page)
+  await openExhibit(page, 'muniu-dulun')
+  await page.locator('.stage-wrap').scrollIntoViewIfNeeded()
+  // 停车阶段（0–2 秒）：车把、车轮此刻都不动
+  await pauseAt(page, 0.5)
+  await camSettled(page)
+  await expect(page.locator('[data-drive="handle"]')).toBeVisible()
+  const a0 = await anchorOf(page, 'handle')
+  const az0 = await page.locator('canvas').getAttribute('data-cam-az')
+  await dragOnCanvas(page, isMobile, a0, 0, isMobile ? -20 : -30)
+  // 时间跳进了抬平阶段（4–6 秒），车把在屏幕上往上走了
+  await expect.poll(() => scrubT(page)).toBeGreaterThan(4)
+  expect(await scrubT(page)).toBeLessThanOrEqual(6.5)
+  await expect.poll(async () => (await anchorOf(page, 'handle')).y).toBeLessThan(a0.y - 5)
+  expect(await page.locator('canvas').getAttribute('data-cam-az')).toBe(az0)
+  await expect(stage(page)).toHaveAttribute('data-selected', '')
+  expect(errors).toEqual([])
 })
 
 // —— A3 迹线 ——

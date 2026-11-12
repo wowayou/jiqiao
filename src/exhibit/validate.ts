@@ -110,6 +110,7 @@ export function validateExhibit(def: AnyExhibit, dirName?: string): string[] {
     if (!d.hint) e(`drive ${d.part} 没有提示语`)
     if (d.anchor && d.anchor.some((x) => !Number.isFinite(x))) e(`drive ${d.part} 的 anchor 含非有限值`)
     if (d.scale !== undefined && !(d.scale > 0)) e(`drive ${d.part} 的 scale 须为正`)
+    if (d.seek !== undefined && !(d.seek > 0)) e(`drive ${d.part} 的 seek 须为正`)
   }
 
   for (const c of def.controls) if (!(c.key in (def.defaults as object))) e(`控件 ${c.key} 没有初值（defaults）`)

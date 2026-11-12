@@ -113,7 +113,9 @@ export function tourPlan(def: AnyExhibit, controls: unknown = def.defaults): (St
 export function tourTick(t: number, win: [number, number], rate: number, dt: number, span: number, cyclic: boolean): number {
   const len = win[1] - win[0]
   // 窗可以跨过 0（t0 < 0）：把 t 折到窗起点之后的一个周期里再判断
-  const d = cyclic ? (((t - win[0]) % span) + span) % span : t - win[0]
+  let d = cyclic ? (((t - win[0]) % span) + span) % span : t - win[0]
+  // 调用方回绕 t 时会有末位的浮点误差：t 可能比窗头小一点点，折算后落在周期的最末尾。那就是窗头，不是窗外。
+  if (cyclic && span - d < span * 1e-9) d = 0
   if (d < -1e-9 || d > len + 1e-9) return win[0]
   const next = d + rate * dt
   return next > len ? win[0] : win[0] + next

@@ -23,6 +23,11 @@ export interface DragProblem {
   bounds?: [number, number]
   /** 迭代次数（默认 5）：指针一次移动较多、轨迹是弧线时，逐步贴近 */
   iterations?: number
+  /**
+   * 此刻零件不动（停着等别的动作做完）时，最多往前、往后各找这么长的时间：找到它开始动、而且是顺着手的方向动的那一刻，
+   * 直接跳过去再接着拖。省略 = 不找，此刻不动就拖不动。
+   */
+  seek?: number
 }
 
 export interface DragResult {
@@ -41,10 +46,61 @@ const H_SCALES = [1, 4, 16, 64]
 const sub = (a: Vec2, b: Vec2): Vec2 => [a[0] - b[0], a[1] - b[1]]
 const dot = (a: Vec2, b: Vec2) => a[0] * b[0] + a[1] * b[1]
 
+/** 往前、往后找的格数 */
+const SEEK_STEPS = 60
+
+/**
+ * 此刻不动：在 [t - seek, t + seek] 里找零件开始顺着手（位移 d）动的时刻。
+ * 每一侧只看最先遇到的那一段运动：它若逆着手，这一侧就不再往远处找（不跳过一段相反的运动）。
+ * 两侧都找得到时取往前的一侧：时间往前走是机器本来的顺序（抬车把 = 进入「抬平」，而不是把「放把」倒着放）。
+ */
+function seekMotion(p: DragProblem, t: number, d: Vec2, lo: number, hi: number): number | null {
+  const seek = p.seek!
+  const speedAt = (a: number, b: number): Vec2 | null => {
+    const pa = p.project(a)
+    const pb = p.project(b)
+    return pa && pb ? [(pb[0] - pa[0]) / (b - a), (pb[1] - pa[1]) / (b - a)] : null
+  }
+  let fwd: number | null = null
+  let back: number | null = null
+  let fDone = false
+  let bDone = false
+  for (let i = 1; i <= SEEK_STEPS && !(fDone && bDone); i++) {
+    const off = (seek * i) / SEEK_STEPS
+    if (!fDone) {
+      const a = t + off
+      if (a + p.h > hi) fDone = true
+      else {
+        const v = speedAt(a, a + p.h)
+        if (v && Math.hypot(v[0], v[1]) >= p.minSpeed) {
+          if (dot(d, v) > 0) fwd = a
+          fDone = true
+        }
+      }
+    }
+    if (!bDone) {
+      const a = t - off
+      if (a - p.h < lo) bDone = true
+      else {
+        // 时间往回走，零件沿 -v 动
+        const v = speedAt(a - p.h, a)
+        if (v && Math.hypot(v[0], v[1]) >= p.minSpeed) {
+          if (dot(d, v) < 0) back = a
+          bDone = true
+        }
+      }
+    }
+  }
+  return fwd ?? back
+}
+
 export function solveDrag(p: DragProblem): DragResult {
   const iters = p.iterations ?? 5
   const [lo, hi] = p.bounds ?? [-Infinity, Infinity]
   let t = Math.min(hi, Math.max(lo, p.t))
+  // 单次求解的总量上限从这里算起；跳过一段静止之后从跳到的那一刻算起
+  let origin = t
+  let sought = false
   let status: DragResult['status'] = 'still'
   for (let it = 0; it < iters; it++) {
     const cur = p.project(t)
@@ -77,12 +133,22 @@ export function solveDrag(p: DragProblem): DragResult {
       break
     }
     if (step === null) {
+      if (!anyMoving && p.seek && !sought) {
+        sought = true
+        const found = seekMotion(p, t, d, lo, hi)
+        if (found !== null) {
+          t = found
+          origin = found
+          status = 'ok'
+          continue
+        }
+      }
       if (it === 0) status = anyMoving ? 'blocked' : 'still'
       break
     }
     // 线性外推在弧线、折返点附近会冲过头：走完这一步若没有离指针更近，就把步长减半再试（回溯）
     const dist0 = Math.hypot(d[0], d[1])
-    const clampT = (x: number) => Math.min(p.t + p.maxDt, Math.max(p.t - p.maxDt, Math.min(hi, Math.max(lo, x))))
+    const clampT = (x: number) => Math.min(origin + p.maxDt, Math.max(origin - p.maxDt, Math.min(hi, Math.max(lo, x))))
     let accepted: number | null = null
     for (let s = step, k = 0; k < 12; k++, s /= 2) {
       const tn = clampT(t + s)
@@ -93,13 +159,13 @@ export function solveDrag(p: DragProblem): DragResult {
       }
     }
     if (accepted === null || accepted === t) {
-      if (it === 0) status = 'blocked'
+      if (it === 0 && !sought) status = 'blocked'
       break
     }
     status = 'ok'
     t = accepted
     // 总量不超过上限
-    if (Math.abs(t - p.t) >= p.maxDt - 1e-12) break
+    if (Math.abs(t - origin) >= p.maxDt - 1e-12) break
   }
   return { dt: t - Math.min(hi, Math.max(lo, p.t)), status }
 }

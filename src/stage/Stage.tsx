@@ -655,6 +655,7 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
   }
 
   const suppressClick = useRef(false)
+  const pinsShown = useRef(false)
   useEffect(() => {
     const host = gl.domElement.parentElement
     if (!host || drives.length === 0) return
@@ -711,6 +712,7 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
         minSpeed: d.minSpeed,
         maxDt: d.maxDt,
         bounds: def.timeline.kind === 'assembly' ? [0, 1] : undefined,
+        seek: d.drive.seek,
       })
       if (res.dt !== 0) st.setT(st.t + res.dt)
     }
@@ -721,8 +723,20 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
       if (drag) return
       if (e.pointerType === 'mouse' && e.button !== 0) return
       if (!canDrive()) return
-      const hit = surfaceAt(e.clientX, e.clientY)
-      const drive = hit && driveOf(hit.it.inst.part.id)
+      let hit = surfaceAt(e.clientX, e.clientY)
+      let drive = hit && driveOf(hit.it.inst.part.id)
+      if (!drive && pinsShown.current) {
+        // 提示圆圈本身也是把手：圈住的那一点可能正好被别的零件挡着，按在圈上照样抓得住
+        const [px, py] = rel(e)
+        for (const d of drives) {
+          const a = projectAt(d.it, d.anchor, store.getState().t)
+          if (a && Math.hypot(a[0] - px, a[1] - py) <= PIN_GRAB_RADIUS) {
+            drive = d
+            hit = { it: d.it, point: d.it.group.localToWorld(d.anchor.clone()) }
+            break
+          }
+        }
+      }
       if (!hit || !drive) return
       // 落在可拖零件上：这一次按下是拖零件，不是转视角（轨道控制器在它自己的按下处理里看到 enabled = false 就不接手）
       if (controls) controls.enabled = false
@@ -764,6 +778,7 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
   const touring = useStage((s) => s.tour !== null)
   // 讲解中不出提示标记：画面只留给这一环
   const showDrivePins = !driveSeen && explodeNow < 0.001 && !touring
+  pinsShown.current = showDrivePins && drives.length > 0
 
   const selected = useStage((s) => s.selected)
   const pinned = useStage((s) => s.pinnedStep)
@@ -856,6 +871,9 @@ function visibleInScene(o: Object3D | null): boolean {
   for (let x = o; x; x = x.parent) if (!x.visible) return false
   return true
 }
+
+/** 按在提示圆圈上也算抓住零件：离圈心这么多像素以内 */
+const PIN_GRAB_RADIUS = 16
 
 /**
  * 没写 anchor 的可拖零件：在推导范围里取样，挑运动幅度最大的顶点，再往零件包围盒中心收 3%（落在实体里，

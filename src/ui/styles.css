@@ -621,6 +621,8 @@ input[type='range'] {
 }
 .trace-line.is-stale {
   opacity: 0.35;
+  /* 换段时新的一段通常下一帧就取好：晚一点才变淡，免得每个小循环闪一下 */
+  transition: opacity 0.2s 0.25s;
 }
 .trace-cursor {
   stroke: var(--accent);

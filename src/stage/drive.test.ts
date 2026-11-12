@@ -63,6 +63,45 @@ describe('拖动求解', () => {
     expect(r.status).toBe('ok')
     expect(r.dt).toBeGreaterThan(0)
   })
+  describe('停着等别的动作做完的零件（seek）', () => {
+    // 0–3 停着，3–5 往右走 200 px，5–8 停着，8–10 走回来
+    const dwell = (t: number): Vec2 => {
+      const u = ((t % 10) + 10) % 10
+      const x = u < 3 ? 0 : u < 5 ? (u - 3) * 100 : u < 8 ? 200 : 200 - (u - 8) * 100
+      return [100 + x, 50]
+    }
+    const q = { ...base, h: 0.01, minSpeed: 4, maxDt: 2.5, project: dwell }
+    test('不写 seek：此刻不动就拖不动', () => {
+      const r = solveDrag({ ...q, t: 1, target: [140, 50] })
+      expect(r.status).toBe('still')
+      expect(r.dt).toBe(0)
+    })
+    test('往它接下来要走的方向拖：跳到开始动的那一刻，再跟着手走', () => {
+      const r = solveDrag({ ...q, seek: 4, t: 1, target: [140, 50] })
+      expect(r.status).toBe('ok')
+      expect(dwell(1 + r.dt)[0]).toBeCloseTo(140, 0)
+    })
+    test('停在最右端（x = 300）：再往右两侧都不顺手，不动；往左拖，往前（8 秒后走回来）顺手，跳过去', () => {
+      const out = solveDrag({ ...q, seek: 4, t: 6, target: [330, 50] })
+      expect(out.dt).toBe(0)
+      expect(out.status).toBe('still')
+      const left = solveDrag({ ...q, seek: 4, t: 6, target: [260, 50] })
+      expect(left.status).toBe('ok')
+      expect(left.dt).toBeGreaterThan(0)
+      expect(dwell(6 + left.dt)[0]).toBeCloseTo(260, 0)
+    })
+    test('往前找不到（超出 seek）时用往后的一侧：把刚才那段运动倒着放', () => {
+      const r = solveDrag({ ...q, seek: 1.5, t: 6, target: [260, 50] })
+      expect(r.status).toBe('ok')
+      expect(r.dt).toBeLessThan(0)
+      expect(dwell(6 + r.dt)[0]).toBeCloseTo(260, 0)
+    })
+    test('seek 范围内两侧都还停着：不动', () => {
+      const r = solveDrag({ ...q, seek: 0.8, t: 1.5, target: [140, 50] })
+      expect(r.dt).toBe(0)
+      expect(r.status).toBe('still')
+    })
+  })
   test('峰值速度与阈值：匀速圆周的峰值 = ωR', () => {
     const v = peakSpeed(circle, 0, 4, 1e-4)
     expect(v).toBeCloseTo(W * 100, 1)

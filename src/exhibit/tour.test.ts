@@ -70,6 +70,27 @@ describe('讲解循环的下一刻', () => {
 
 const ids = Object.keys(exhibitLoaders).sort()
 
+describe.each(ids)('展品 %s 的讲解循环', (id) => {
+  // 照展台的做法走：进这一环时 t 回绕到时间轴内，每帧 tourTick 后再回绕。
+  // 回绕会带来末位的浮点误差：t 可能比窗头小一点点，不能因此被当成「在窗外」而永远弹回窗头。
+  test('每一环从窗头起播都真的往前走', async () => {
+    const def = await exhibitLoaders[id]()
+    const cyclic = def.timeline.kind === 'cyclic'
+    const span = def.timeline.kind === 'cyclic' ? def.timeline.period : 1
+    const wrap = (t: number) => (cyclic ? ((t % span) + span) % span : Math.min(1, Math.max(0, t)))
+    tourPlan(def).forEach((p, i) => {
+      const len = p!.window[1] - p!.window[0]
+      // 走不到窗尾的若干帧
+      const frames = 10
+      const dt = (len / p!.rate) * 0.05
+      let t = wrap(p!.window[0])
+      for (let k = 0; k < frames; k++) t = wrap(tourTick(t, p!.window, p!.rate, dt, span, cyclic))
+      const d = cyclic ? (((t - p!.window[0]) % span) + span) % span : t - p!.window[0]
+      expect(d, `${def.chain[i].id} 卡在窗头不走`).toBeCloseTo(len * 0.05 * frames, 6)
+    })
+  })
+})
+
 describe.each(ids)('展品 %s 的讲解计划', (id) => {
   test('每一环都有时间窗；有 active 的环窗内确有采样点为真；窗内这一环的零件在动', async () => {
     const def = await exhibitLoaders[id]()
