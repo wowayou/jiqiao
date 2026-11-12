@@ -333,6 +333,7 @@ export function ViewBar({ def }: { def: AnyExhibit }) {
   const active = useStage((s) => s.activeView)
   const selected = useStage((s) => s.selected)
   const fade = useStage((s) => s.fadeParts)
+  const hidden = useStage((s) => s.hidden)
   const a = useStageActions()
   const ref = useInsetRef('bottom')
   const views = def.views ?? []
@@ -359,7 +360,22 @@ export function ViewBar({ def }: { def: AnyExhibit }) {
         >
           凑近看
         </button>
+        <button
+          type="button"
+          className="btn"
+          disabled={!selected}
+          onClick={() => a.hidePart()}
+          data-testid="hide-part"
+          title={selected ? '隐藏选中的零件，露出它挡住的东西（H）' : '先选中一个零件，再隐藏它'}
+        >
+          隐藏
+        </button>
         <HelpButton />
+        {hidden.length > 0 && (
+          <button type="button" className="btn" onClick={a.showAll} data-testid="show-all" title="把隐藏的零件全部显示出来">
+            全部显示 ({hidden.length})
+          </button>
+        )}
         {fade.length > 0 && (
           <button type="button" className="btn" onClick={a.clearFade} data-testid="clear-fade" title="把为了看清而变透明的零件恢复">
             恢复遮挡 ({fade.length})
@@ -393,7 +409,7 @@ function HelpButton() {
             <dd>
               <kbd>空格</kbd> 播放/暂停　<kbd>←</kbd>
               <kbd>→</kbd> 逐步，<kbd>Shift</kbd>+<kbd>←</kbd>
-              <kbd>→</kbd> 整格　<kbd>E</kbd> 爆炸　<kbd>S</kbd> 剖切　<kbd>F</kbd> 凑近看选中的零件　<kbd>R</kbd> 全景　<kbd>1</kbd>–<kbd>9</kbd> 切机位　<kbd>[</kbd>
+              <kbd>→</kbd> 整格　<kbd>E</kbd> 爆炸　<kbd>S</kbd> 剖切　<kbd>F</kbd> 凑近看选中的零件　<kbd>H</kbd> 隐藏选中的零件　<kbd>R</kbd> 全景　<kbd>1</kbd>–<kbd>9</kbd> 切机位　<kbd>[</kbd>
               <kbd>]</kbd> 讲解上一环 / 下一环　<kbd>Esc</kbd> 取消选中（讲解中为退出讲解）
             </dd>
           </dl>
@@ -782,7 +798,8 @@ const GROUP_ORDER: PartGroup[] = ['base', 'structure', 'mechanism', 'control', '
 
 export function PartsPanel({ def }: { def: AnyExhibit }) {
   const selected = useStage((s) => s.selected)
-  const { select, pinStep, focusPart } = useStageActions()
+  const { select, pinStep, focusPart, hidePart, showPart, showAll } = useStageActions()
+  const hidden = useStage((s) => s.hidden)
   const [pid, fid] = selected ? splitRef(selected) : [null, undefined]
   const part = def.parts.find((p) => p.id === pid)
   const feature = part?.features?.find((f) => f.id === fid)
@@ -798,9 +815,20 @@ export function PartsPanel({ def }: { def: AnyExhibit }) {
           <h3>{feature ? `${part.name} · ${feature.name}` : part.name}</h3>
           <span className="badge">{GROUP_LABEL[part.group]}</span>
           <p className="role">{feature ? feature.role : part.role}</p>
-          <button type="button" className="btn" onClick={() => (focusPart(part.id), revealStage())} title="镜头凑近这个零件并绕它旋转（F）" data-testid="focus-part-detail">
-            凑近看
-          </button>
+          <div className="part-actions">
+            <button type="button" className="btn" onClick={() => (focusPart(part.id), revealStage())} title="镜头凑近这个零件并绕它旋转（F）" data-testid="focus-part-detail">
+              凑近看
+            </button>
+            {hidden.includes(part.id) ? (
+              <button type="button" className="btn" onClick={() => showPart(part.id)} data-testid="show-part-detail" title="重新显示这个零件">
+                显示
+              </button>
+            ) : (
+              <button type="button" className="btn" onClick={() => hidePart(part.id)} data-testid="hide-part-detail" title="隐藏这个零件（H）">
+                隐藏
+              </button>
+            )}
+          </div>
           <ClaimList claims={feature ? feature.claims : part.claims} def={def} />
           {!feature && part.features?.length ? (
             <ul className="feature-list" aria-label="零件上的特征">
@@ -820,7 +848,15 @@ export function PartsPanel({ def }: { def: AnyExhibit }) {
           )}
         </section>
       ) : (
-        <p className="panel-note">在画面里点一个零件，或从下面选择。</p>
+        <p className="panel-note">在画面里点一个零件，或从下面选择。选中后可以隐藏它，露出后面的东西。</p>
+      )}
+      {hidden.length > 0 && (
+        <p className="panel-note hidden-note">
+          已隐藏 {hidden.length} 个零件（列表里标着「已隐藏」，点开可单独显示）。
+          <button type="button" className="btn" onClick={showAll} data-testid="show-all-panel">
+            全部显示
+          </button>
+        </p>
       )}
       <div className="part-groups">
         {GROUP_ORDER.filter((g) => def.parts.some((p) => p.group === g)).map((g) => (
@@ -831,8 +867,17 @@ export function PartsPanel({ def }: { def: AnyExhibit }) {
                 .filter((p) => p.group === g)
                 .map((p) => (
                   <li key={p.id}>
-                    <button type="button" className="btn" aria-pressed={pid === p.id} onClick={() => choose(pid === p.id && !fid ? null : p.id)} data-part={p.id}>
+                    <button
+                      type="button"
+                      className={`btn${hidden.includes(p.id) ? ' is-hidden' : ''}`}
+                      aria-pressed={pid === p.id}
+                      onClick={() => choose(pid === p.id && !fid ? null : p.id)}
+                      data-part={p.id}
+                      data-hidden={hidden.includes(p.id) || undefined}
+                      title={hidden.includes(p.id) ? `${p.name}（已隐藏，点开后可重新显示）` : undefined}
+                    >
                       {p.name}
+                      {hidden.includes(p.id) && <span className="hidden-mark">已隐藏</span>}
                     </button>
                   </li>
                 ))}

@@ -892,6 +892,24 @@ input[type='range'] {
 .part-detail .role {
   margin: var(--s2) 0;
 }
+.part-actions {
+  display: flex;
+  gap: var(--s2);
+}
+.btn.is-hidden {
+  border-style: dashed;
+  color: var(--ink-3);
+}
+.hidden-mark {
+  font-size: var(--fs-0);
+  color: var(--ink-3);
+}
+.hidden-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
 .feature-list {
   list-style: none;
   margin: var(--s3) 0 0;

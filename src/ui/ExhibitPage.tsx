@@ -125,6 +125,7 @@ function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
       else if (e.key === 'e' || e.key === 'E') actions.setExplode(st.explode > 0.5 ? 0 : 1)
       else if (e.key === 's' || e.key === 'S') actions.setSection({ on: !st.section.on })
       else if (e.key === 'f' || e.key === 'F') actions.focusPart()
+      else if (e.key === 'h' || e.key === 'H') actions.hidePart()
       else if (e.key === 'r' || e.key === 'R') actions.applyView('all')
       else if (e.key === ']' || e.key === '[') {
         const dir = e.key === ']' ? 1 : -1

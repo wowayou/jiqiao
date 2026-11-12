@@ -522,9 +522,12 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
     const fadeOthers = st.isolate && focus.parts.size > 0
     const fadeSet = new Set(st.fadeParts)
     const secOn = st.section.on
+    // 观众隐藏的零件不画（也就不能点选、不挡视线）；讲解到的这一环要看的零件例外，照常显示
+    const hiddenSet = new Set(st.hidden)
+    if (st.tour && hiddenSet.size) for (const r of def.chain[st.tour.index].parts) hiddenSet.delete(splitRef(r)[0])
     for (const it of insts) {
       const ist = scene.get(it.inst.key)!
-      it.group.visible = ist.visible
+      it.group.visible = ist.visible && !hiddenSet.has(it.inst.part.id)
       it.group.position.set(...ist.pose.p)
       if (ist.pose.q) it.group.quaternion.set(...ist.pose.q)
       else it.group.quaternion.identity()

@@ -86,6 +86,8 @@ export interface StageState {
   dragging: string | null
   /** 观众已经亲手拖过一次：抓取处的提示标记不再显示 */
   driveSeen: boolean
+  /** 观众自己隐藏的零件（预设机位、讲解切换都不清掉，只有「全部显示」清掉） */
+  hidden: string[]
 }
 
 export interface StageActions {
@@ -126,6 +128,10 @@ export interface StageActions {
   plan(): (StepPlan | null)[]
   /** 观众拖过一次零件：记住，提示标记从此不再出现 */
   markDriveSeen(): void
+  /** 隐藏零件（缺省为选中的零件）；隐藏选中的零件同时取消选中 */
+  hidePart(id?: string): void
+  showPart(id: string): void
+  showAll(): void
 }
 
 export type Stage = StageState & StageActions
@@ -198,6 +204,7 @@ export function createStageStore(def: AnyExhibit): StageStore {
     tour: null,
     dragging: null,
     driveSeen: readDriveSeen(def.meta.id),
+    hidden: [],
 
     setT: (t) => set({ t: wrapT(get().def, t) }),
     setPlaying: (p) => {
@@ -269,6 +276,17 @@ export function createStageStore(def: AnyExhibit): StageStore {
       get().setT(get().t + dir * size)
     },
 
+    hidePart: (id) => {
+      const st = get()
+      const ref = id ?? st.selected
+      if (!ref) return
+      const pid = splitRef(ref)[0]
+      if (!st.def.parts.some((p) => p.id === pid)) return
+      const sel = st.selected && splitRef(st.selected)[0] === pid ? null : st.selected
+      set({ hidden: st.hidden.includes(pid) ? st.hidden : [...st.hidden, pid], selected: sel, hovered: st.hovered === pid ? null : st.hovered })
+    },
+    showPart: (id) => set({ hidden: get().hidden.filter((x) => x !== id) }),
+    showAll: () => set({ hidden: [] }),
     markDriveSeen: () => {
       if (!get().driveSeen) set({ driveSeen: true })
       writeDriveSeen(get().def.meta.id)

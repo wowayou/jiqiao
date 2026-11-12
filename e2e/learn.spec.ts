@@ -1,7 +1,7 @@
 // 第二轮「看懂为先」：讲解、亲手驱动、迹线、零件显隐。桌面 1440 与手机 390 两个项目都会跑。
 // 无头浏览器是软件渲染，零件多的展品单帧可达数秒——等待一律用状态断言或 expect.poll，不用固定长 sleep。
 import { expect, test, type Page } from '@playwright/test'
-import { setRange, trackErrors } from './helpers'
+import { canvasShot, expectCanvasChanged, setRange, trackErrors } from './helpers'
 
 async function openExhibit(page: Page, id: string) {
   await page.goto(`/#/e/${id}`)
@@ -315,4 +315,57 @@ test('迹线：每个展品都有，横轴在手机宽度下不溢出', async ({
     expect(await page.locator('.trace-label').count()).toBeGreaterThanOrEqual(1)
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0)
   }
+})
+
+// —— A4 零件显隐 ——
+
+test('零件显隐：选中后隐藏，画面变化；换机位、进出讲解都不清掉；单个显示与「全部显示」恢复', async ({ page }) => {
+  const errors = trackErrors(page)
+  await openExhibit(page, 'bai-zhong')
+  await pauseAt(page, 0)
+  await expect(page.getByTestId('hide-part')).toBeDisabled()
+  await page.getByRole('tab', { name: '零件' }).click()
+  await page.locator('[data-part="dial"]').click()
+  await expect(stage(page)).toHaveAttribute('data-selected', 'dial')
+  const canvas = page.locator('canvas')
+  const before = await canvasShot(canvas)
+  await page.getByTestId('hide-part').click()
+  // 隐藏选中的零件同时取消选中
+  await expect(stage(page)).toHaveAttribute('data-selected', '')
+  await expect(page.locator('[data-part="dial"]')).toHaveAttribute('data-hidden', 'true')
+  await expect(page.getByTestId('show-all')).toHaveText('全部显示 (1)')
+  await expectCanvasChanged(page, canvas, before)
+  // 换机位、回全景：隐藏的零件还是隐藏的
+  await page.locator('[data-view="escapement"]').click()
+  await page.getByTestId('reset-view').click()
+  await expect(page.getByTestId('show-all')).toHaveText('全部显示 (1)')
+  // 进出讲解也不清掉
+  await page.getByTestId('tour-start').click()
+  await page.getByTestId('tour-next').click()
+  await page.getByTestId('tour-exit').click()
+  await expect(page.getByTestId('show-all')).toHaveText('全部显示 (1)')
+  // 再隐藏一个；从零件面板单独显示一个
+  await page.getByRole('tab', { name: '零件' }).click()
+  await page.locator('[data-part="front-plate"]').click()
+  await page.getByTestId('hide-part-detail').click()
+  await expect(page.getByTestId('show-all')).toHaveText('全部显示 (2)')
+  await page.locator('[data-part="dial"]').click()
+  await page.getByTestId('show-part-detail').click()
+  await expect(page.locator('[data-part="dial"]')).not.toHaveAttribute('data-hidden', 'true')
+  await expect(page.getByTestId('show-all')).toHaveText('全部显示 (1)')
+  // 全部显示
+  await page.getByTestId('show-all').click()
+  await expect(page.getByTestId('show-all')).toHaveCount(0)
+  await expect(page.locator('[data-hidden]')).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
+test('零件显隐：H 键隐藏选中的零件', async ({ page, isMobile }) => {
+  test.skip(isMobile, '键盘')
+  await openExhibit(page, 'shi-mo')
+  await page.getByRole('tab', { name: '零件' }).click()
+  await page.locator('[data-part="tray"]').click()
+  await page.locator('body').press('h')
+  await expect(page.locator('[data-part="tray"]')).toHaveAttribute('data-hidden', 'true')
+  await expect(page.getByTestId('show-all')).toBeVisible()
 })
