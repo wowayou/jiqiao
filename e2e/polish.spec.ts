@@ -300,6 +300,30 @@ test('过渡动效 150–250 ms；减少动效下全部关闭', async ({ browser
   }
 })
 
+test('浅色主题：正文、次要文字、小字灰对纸色的对比度不低于 4.5:1', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('jiqiao-theme', 'light'))
+  await page.goto('/')
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  const tokens = await page.evaluate(() => {
+    const cs = getComputedStyle(document.documentElement)
+    const out: Record<string, string> = {}
+    for (const k of ['paper', 'paper-2', 'ink', 'ink-2', 'ink-3']) out[k] = cs.getPropertyValue(`--${k}`).trim()
+    return out
+  })
+  const lum = (hex: string) => {
+    const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+  }
+  const ratio = (a: string, b: string) => {
+    const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p)
+    return (x + 0.05) / (y + 0.05)
+  }
+  // 强调色（朱红）在浅色下对 paper 约 4.3:1，是品牌色，本条不验
+  for (const fg of ['ink', 'ink-2', 'ink-3']) {
+    for (const bg of ['paper', 'paper-2']) expect(ratio(tokens[fg], tokens[bg]), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5)
+  }
+})
+
 test('暗色主题：文字、强调色对背景的对比度不低于 4.5:1，按钮边框不低于 3:1', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('jiqiao-theme', 'dark'))
   await page.goto('/')

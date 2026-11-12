@@ -107,7 +107,7 @@ export default defineExhibit<MillState, MillControls>({
       authorSlug: "2251387929a",
       license: "CC BY 4.0",
       what: "一所学校里的老石磨，作者用照片重建的实物模型。",
-      differs: "与本展品一样是上下两扇、上扇带磨眼；实物没有保留推杆和磨拐，磨盘也换成了砖砌的底座。",
+      differs: "与本展品一样是上下两扇石磨叠在一起；实物没有保留推杆和磨拐，下面是砖砌的底座，没有接料的磨盘。",
     },
   ],
   traces: [

@@ -1121,7 +1121,7 @@ function RealObjectCard({ o }: { o: RealObjectRef }) {
           id={frameId}
           className="real-frame"
           title={o.title}
-          src={`https://sketchfab.com/models/${o.uid}/embed?dnt=1&ui_theme=dark&ui_infos=0&ui_watermark_link=0`}
+          src={`https://sketchfab.com/models/${o.uid}/embed?dnt=1&autostart=1&ui_theme=dark&ui_infos=0&ui_watermark_link=0`}
           allow="autoplay; fullscreen; xr-spatial-tracking"
           loading="lazy"
           referrerPolicy="no-referrer"

@@ -43,7 +43,7 @@
 ## 做法
 
 - 运动只来自每个展品的纯函数 `simulate(t)`，不用物理引擎；画面、读数、协同链高亮读的是同一份结果。
-- 零件全部由代码按参数生成，不引入外部模型文件。
+- 零件全部由代码按参数生成，不引入外部模型文件。「实物对照」里别人做的模型只在读者点击后从 Sketchfab 在线加载，不进仓库，署名见 [docs/CREDITS.md](docs/CREDITS.md)。
 - 每个展品有自动审计：零件是合法实体、运转一整圈零件之间不互相穿过、运动学关系（速比、相位、行程）与模型一致。
 - Three.js + React Three Fiber 渲染，manifold-3d 做实体运算与干涉检查，Vite + TypeScript，Vitest 与 Playwright 测试。
 
