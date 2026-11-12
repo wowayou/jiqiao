@@ -94,6 +94,8 @@ export default defineExhibit<MillState, MillControls>({
   ],
   sources,
   view: { dir: [0.55, 0.62, 1] },
+  // 亲手驱动：抓住推杆末端的横把推拉，上扇跟着转（横把中心，推杆局部坐标）
+  drive: [{ part: 'push-rod', hint: '推拉横把', anchor: [DIM.rodLen + 4, 0, 0] }],
   section: { normal: [0, 0, -1], offset: 0, label: '过磨心的竖直剖面' },
   audit: {
     phases: 120,

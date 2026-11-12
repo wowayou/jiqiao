@@ -62,6 +62,11 @@ export default defineExhibit<JointState, Record<string, never>>({
   ],
   sources: {},
   view: { dir: [-0.45, 0.35, 1], target: [40, 0, 0] },
+  // 横料只在第一步（0–50%）动，楔只在第二步动：楔没拔出来时横料拔不动
+  drive: [
+    { part: 'rail', hint: '推拉横料（榫头进出卯眼）', anchor: [250, 0, 0] },
+    { part: 'wedge', hint: '敲入 / 拔出楔' },
+  ],
   section: { normal: [0, 0, -1], offset: 0, label: '过榫头中线的竖直剖面（看楔与出口放大段）' },
   views: [
     {

@@ -2,7 +2,7 @@
 import { defineExhibit } from '../../exhibit/types'
 import { CHAIN_TEXT, STAGE_TEXT, intro, sources } from './content'
 import { meta } from './meta'
-import { CIRC, D_DEFAULT, D_MAX, D_MIN, PERIOD, TOTAL_KG, simulate, type DulunControls, type DulunState } from './model'
+import { CIRC, D_DEFAULT, D_MAX, D_MIN, GRIP, PERIOD, TOTAL_KG, simulate, type DulunControls, type DulunState } from './model'
 import { parts } from './parts'
 
 const kg = (x: number) => `${x.toFixed(1)} kg`
@@ -85,6 +85,11 @@ export default defineExhibit<DulunState, DulunControls>({
   ],
   sources,
   view: { dir: [0.45, 0.4, 1], target: [0, 330, 0] },
+  // 车把只在抬平、放把时动，车轮只在推行时转：其余时刻拖不动（此刻它们本来就不动）
+  drive: [
+    { part: 'handle', hint: '抬起 / 放下车把', anchor: [GRIP[0], GRIP[1], 0] },
+    { part: 'wheel', hint: '推着车轮走' },
+  ],
   audit: {
     phases: 120,
     contacts: [

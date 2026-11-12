@@ -174,8 +174,8 @@ function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
         </div>
         {ready && <TourBar def={def} />}
         <p className="stage-tip">
-          <span className="tip-fine">拖动旋转 · 滚轮朝指针处缩放 · 双击零件凑近看 · 点「?」看全部操作</span>
-          <span className="tip-touch">单指旋转 · 双指缩放平移 · 双击零件凑近看 · 「?」更多</span>
+          <span className="tip-fine">拖动旋转 · 滚轮朝指针处缩放 · 双击零件凑近看 · 光标变手形的零件可直接拖 · 点「?」看全部操作</span>
+          <span className="tip-touch">单指旋转 · 双指缩放平移 · 双击凑近 · 圈出的零件可按住拖 · 「?」更多</span>
         </p>
         <Timeline def={def} />
         <Readouts def={def} />

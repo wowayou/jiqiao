@@ -199,6 +199,11 @@ export default defineExhibit<CarState, CarControls>({
   ],
   sources,
   view: { dir: [0.8, 0.42, -1], target: [-150, 1250, 0] },
+  // 抓取提示点在轮辋上（足轮局部坐标：轮面在 xz 平面，t = 0 时这一点在车头一侧）
+  drive: [
+    { part: 'wheel-left', hint: '推动足轮（车往前走）', anchor: [0, 0, 890] },
+    { part: 'wheel-right', hint: '推动足轮（车往前走）', anchor: [0, 0, 890] },
+  ],
   section: { normal: [0, -1, 0], offset: -1440, label: '水平剖开、揭去台板，从上方看轮系' },
   views: [
     {

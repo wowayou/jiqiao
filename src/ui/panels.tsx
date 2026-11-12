@@ -375,6 +375,8 @@ function HelpButton() {
             <dd>点工具条上的「讲解」：一环一环看，舞台下方是这一环的说明，时间只在这一环发生的那一小段里慢速循环</dd>
             <dt>鼠标</dt>
             <dd>左键拖动旋转 · 右键拖动平移 · 滚轮朝指针处缩放 · 点零件选中 · 双击零件凑近看 · 点空白取消选中</dd>
+            <dt>亲手驱动</dt>
+            <dd>光标变成手形的零件可以直接抓住拖动，机器跟着手走（拖动只改时间；拆开时不可拖）。手指落在这些零件上是拖零件，落在别处是转视角</dd>
             <dt>触屏</dt>
             <dd>单指拖动旋转 · 双指张合缩放、双指同向拖动平移 · 双击零件凑近看</dd>
             <dt>键盘</dt>
@@ -409,11 +411,15 @@ export function HoverTip({ def }: { def: AnyExhibit }) {
     wrap.addEventListener('pointermove', on)
     return () => wrap.removeEventListener('pointermove', on)
   }, [])
+  const explode = useStage((s) => s.explode)
   const base = hovered ? splitRef(hovered)[0] : null
   const part = def.parts.find((p) => p.id === base)
+  // 可拖零件：名字后面跟提示语（爆炸时不可拖，不提示）
+  const drive = explode < 0.001 ? def.drive?.find((d) => d.part === base) : undefined
   return (
     <div ref={ref} className="hover-tip" hidden={!part} role="tooltip" data-testid="hover-tip">
       {part?.name}
+      {drive && <span className="hover-hint"> · {drive.hint}</span>}
     </div>
   )
 }

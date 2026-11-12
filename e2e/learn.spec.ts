@@ -125,3 +125,131 @@ test('讲解条在舞台下面，不压在模型上；手机宽度按钮点得�
   expect(bad).toEqual([])
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0)
 })
+
+// —— A2 亲手驱动 ——
+
+type Anchor = { part: string; x: number; y: number }
+/** 可拖零件提示点的屏幕位置；等它连续两次读数相同（画面已按最新的时间与相机画出）再返回 */
+async function anchorOf(page: Page, part: string): Promise<Anchor> {
+  let a: Anchor | undefined
+  let last = ''
+  await expect
+    .poll(
+      async () => {
+        const list = JSON.parse((await page.locator('canvas').getAttribute('data-drive-anchors')) ?? '[]') as Anchor[]
+        a = list.find((x) => x.part === part)
+        const key = JSON.stringify(a)
+        const same = Boolean(a) && key === last
+        last = key
+        return same
+      },
+      { timeout: 30_000, intervals: [300] },
+    )
+    .toBe(true)
+  return a!
+}
+
+/** 从 (x, y) 拖到 (x+dx, y+dy)：桌面用鼠标，手机用触屏事件 */
+async function dragOnCanvas(page: Page, isMobile: boolean, from: { x: number; y: number }, dx: number, dy: number) {
+  const box = (await page.locator('canvas').boundingBox())!
+  const x = box.x + from.x
+  const y = box.y + from.y
+  const n = 10
+  if (isMobile) {
+    const cdp = await page.context().newCDPSession(page)
+    const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', pts: { x: number; y: number }[]) =>
+      cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map((p, id) => ({ ...p, id })) })
+    await touch('touchStart', [{ x, y }])
+    for (let i = 1; i <= n; i++) await touch('touchMove', [{ x: x + (dx * i) / n, y: y + (dy * i) / n }])
+    await touch('touchEnd', [])
+  } else {
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    for (let i = 1; i <= n; i++) await page.mouse.move(x + (dx * i) / n, y + (dy * i) / n)
+    await page.mouse.up()
+  }
+}
+
+async function pauseAt(page: Page, t: number) {
+  const play = page.getByTestId('play')
+  if ((await play.getAttribute('aria-pressed')) === 'true') await play.click()
+  await expect(play).toHaveAttribute('aria-pressed', 'false')
+  await setRange(page.getByTestId('scrub'), t)
+}
+
+const camSettled = (page: Page) => expect.poll(async () => page.locator('canvas').getAttribute('data-cam-anim'), { timeout: 20_000 }).toBe('0')
+
+test('亲手驱动：抓住石磨横把拖动，时间跟着走、横把朝手的方向移动；相机不转、不误选；提示标记交互一次后消失', async ({ page, isMobile }) => {
+  const errors = trackErrors(page)
+  await openExhibit(page, 'shi-mo')
+  await pauseAt(page, 1)
+  await page.locator('.stage-wrap').scrollIntoViewIfNeeded()
+  await expect(page.locator('[data-drive="push-rod"]')).toBeVisible()
+  await camSettled(page)
+  const a0 = await anchorOf(page, 'push-rod')
+  const az0 = await page.locator('canvas').getAttribute('data-cam-az')
+  const t0 = await scrubT(page)
+  const [dx, dy] = isMobile ? [30, 10] : [60, 20]
+  await dragOnCanvas(page, isMobile, a0, dx, dy)
+  await expect.poll(() => scrubT(page)).not.toBe(t0)
+  // 横把的屏幕位置比拖动前更靠近手指 / 鼠标：方向与手一致
+  const target = { x: a0.x + dx, y: a0.y + dy }
+  await expect
+    .poll(async () => {
+      const a1 = await anchorOf(page, 'push-rod')
+      return Math.hypot(a1.x - target.x, a1.y - target.y) < Math.hypot(a0.x - target.x, a0.y - target.y) * 0.5
+    })
+    .toBe(true)
+  expect(await page.locator('canvas').getAttribute('data-cam-az')).toBe(az0)
+  await expect(stage(page)).toHaveAttribute('data-selected', '')
+  await expect(page.getByTestId('play')).toHaveAttribute('aria-pressed', 'false')
+  await expect(page.locator('[data-drive="push-rod"]')).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
+test('亲手驱动：拆开（爆炸）时不可拖，按在零件上照常转视角', async ({ page, isMobile }) => {
+  await openExhibit(page, 'shi-mo')
+  await pauseAt(page, 1)
+  await page.locator('.stage-wrap').scrollIntoViewIfNeeded()
+  await setRange(page.getByTestId('explode'), 0.02)
+  await expect(page.locator('[data-drive="push-rod"]')).toHaveCount(0)
+  await camSettled(page)
+  const a = await anchorOf(page, 'push-rod')
+  const az0 = await page.locator('canvas').getAttribute('data-cam-az')
+  const t0 = await scrubT(page)
+  await dragOnCanvas(page, isMobile, a, 60, 0)
+  await expect.poll(async () => page.locator('canvas').getAttribute('data-cam-az'), { timeout: 20_000 }).not.toBe(az0)
+  expect(await scrubT(page)).toBe(t0)
+})
+
+test('亲手驱动：悬停可拖零件显示提示语、光标变手形；原地点一下仍是选中', async ({ page, isMobile }) => {
+  test.skip(isMobile, '触屏没有悬停')
+  await openExhibit(page, 'shi-mo')
+  await pauseAt(page, 1)
+  await camSettled(page)
+  const a = await anchorOf(page, 'push-rod')
+  const box = (await page.locator('canvas').boundingBox())!
+  await page.mouse.move(box.x + a.x, box.y + a.y)
+  await page.mouse.move(box.x + a.x + 1, box.y + a.y)
+  await expect(page.getByTestId('hover-tip')).toContainText('推拉横把')
+  await expect.poll(() => page.locator('canvas').evaluate((c) => (c as HTMLElement).style.cursor)).toBe('grab')
+  await page.mouse.click(box.x + a.x + 1, box.y + a.y)
+  await expect(stage(page)).toHaveAttribute('data-selected', 'push-rod')
+})
+
+test('亲手驱动：透榫的横料只在第一步动——楔打着时拖不动，拔出楔之后能拖', async ({ page, isMobile }) => {
+  await openExhibit(page, 'tou-sun')
+  await page.locator('.stage-wrap').scrollIntoViewIfNeeded()
+  await pauseAt(page, 1)
+  await camSettled(page)
+  const a = await anchorOf(page, 'rail')
+  await dragOnCanvas(page, isMobile, a, 50, 0)
+  await page.waitForTimeout(300)
+  expect(await scrubT(page)).toBe(1)
+  // 装配进度 25%：横料正在进卯眼，拖得动
+  await setRange(page.getByTestId('scrub'), 0.25)
+  await expect.poll(async () => (await anchorOf(page, 'rail')).x).not.toBe(a.x)
+  const b = await anchorOf(page, 'rail')
+  await dragOnCanvas(page, isMobile, b, 40, 0)
+  await expect.poll(() => scrubT(page)).not.toBe(0.25)
+})

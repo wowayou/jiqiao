@@ -559,6 +559,43 @@ input[type='range'] {
   margin-bottom: var(--s3);
 }
 
+/* 画面里的标注与提示标记不挡指针：点、拖照样落到零件上 */
+.no-hit,
+.no-hit * {
+  pointer-events: none !important;
+}
+
+/* 亲手驱动：抓取处的提示标记（不抢眼：墨色细圈，不用强调色、不做动画） */
+.drive-pin {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+.drive-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  background: color-mix(in srgb, var(--paper) 55%, transparent);
+}
+.drive-hint {
+  position: absolute;
+  left: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 1px 6px;
+  border-radius: var(--r1);
+  background: color-mix(in srgb, var(--paper) 90%, transparent);
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  font-size: var(--fs-0);
+  white-space: nowrap;
+}
+.hover-hint {
+  opacity: 0.8;
+}
+
 /* 时间轴 */
 .timeline {
   display: flex;

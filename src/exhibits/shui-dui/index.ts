@@ -107,6 +107,7 @@ export default defineExhibit<DuiState, DuiControls>({
   ],
   sources,
   view: { dir: [0.55, 0.7, 1] },
+  drive: [{ part: 'wheel', hint: '拨动水轮' }],
   views: [
     {
       id: 'peg',

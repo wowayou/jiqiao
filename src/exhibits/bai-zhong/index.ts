@@ -3,7 +3,7 @@ import { defineExhibit, type ChainStep } from '../../exhibit/types'
 import type { PalletName, EscPhase } from '../../kinematics/escapement'
 import { intro, sources } from './content'
 import { meta } from './meta'
-import { AMPLITUDE, PENDULUM_LENGTH, PENDULUM_PERIOD, PERIOD, WIND, simulate, type ClockControls, type ClockState } from './model'
+import { AMPLITUDE, PENDULUM_LENGTH, PENDULUM_PERIOD, PERIOD, WIND, Z, simulate, type ClockControls, type ClockState } from './model'
 import { parts } from './parts'
 
 /** 机芯前面挡视线的零件：表盘、前夹板、指针与跨轮——预设机位里让开（半透明） */
@@ -142,6 +142,12 @@ export default defineExhibit<ClockState, ClockControls>({
   ],
   sources,
   view: { dir: [0.45, 0.75, 1] },
+  drive: [
+    // 摆锤中心（摆杆局部坐标：原点在悬挂点）
+    { part: 'bob', hint: '拨动摆锤', anchor: [0, -PENDULUM_LENGTH, (Z.pendulum[0] + Z.pendulum[1]) / 2] },
+    // 分针随擒纵一步一停：按一摆（2 s）求平均速度；本模型只有时间一个自由度，拨分针 = 拨快 / 拨慢时间
+    { part: 'minute-hand', hint: '拨动分针（拨时间）', scale: PENDULUM_PERIOD },
+  ],
   views: [
     {
       id: 'escapement',

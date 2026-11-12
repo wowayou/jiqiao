@@ -82,6 +82,10 @@ export interface StageState {
   viewCommand: { kind: 'orbit' | 'zoom'; amount: number; nonce: number } | null
   /** 讲解：非空即在讲解中。讲解中 playing 表示「在这一环的时间窗里循环」 */
   tour: TourState | null
+  /** 正在被拖动的零件（亲手驱动） */
+  dragging: string | null
+  /** 观众已经亲手拖过一次：抓取处的提示标记不再显示 */
+  driveSeen: boolean
 }
 
 export interface StageActions {
@@ -120,6 +124,8 @@ export interface StageActions {
   exitTour(): void
   /** 当前控件值下每一环的讲解计划（时间窗、速度） */
   plan(): (StepPlan | null)[]
+  /** 观众拖过一次零件：记住，提示标记从此不再出现 */
+  markDriveSeen(): void
 }
 
 export type Stage = StageState & StageActions
@@ -135,6 +141,24 @@ export function prefersReducedMotion(): boolean {
 
 export function timelineSpan(def: AnyExhibit): number {
   return def.timeline.kind === 'cyclic' ? def.timeline.period : 1
+}
+
+const SEEN_KEY = 'jiqiao-drive-seen'
+/** 本机是否已在这个展品上拖过零件（存储不可用时当作没拖过：提示标记多出现一次无妨） */
+function readDriveSeen(id: string): boolean {
+  try {
+    return (localStorage.getItem(SEEN_KEY) ?? '').split(',').includes(id)
+  } catch {
+    return false
+  }
+}
+function writeDriveSeen(id: string) {
+  try {
+    const list = (localStorage.getItem(SEEN_KEY) ?? '').split(',').filter(Boolean)
+    if (!list.includes(id)) localStorage.setItem(SEEN_KEY, [...list, id].join(','))
+  } catch {
+    /* 只在本次会话生效 */
+  }
 }
 
 /** 时间回绕到时间轴范围内：机械取模到 [0, period)，榫卯夹在 [0, 1]。 */
@@ -172,6 +196,8 @@ export function createStageStore(def: AnyExhibit): StageStore {
     inset: { top: 0, bottom: 0 },
     viewCommand: null,
     tour: null,
+    dragging: null,
+    driveSeen: readDriveSeen(def.meta.id),
 
     setT: (t) => set({ t: wrapT(get().def, t) }),
     setPlaying: (p) => {
@@ -243,6 +269,10 @@ export function createStageStore(def: AnyExhibit): StageStore {
       get().setT(get().t + dir * size)
     },
 
+    markDriveSeen: () => {
+      if (!get().driveSeen) set({ driveSeen: true })
+      writeDriveSeen(get().def.meta.id)
+    },
     plan: () => {
       const st = get()
       const key = JSON.stringify(st.controls)

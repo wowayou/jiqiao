@@ -252,6 +252,21 @@ export interface ViewPreset {
   note?: string
 }
 
+/** 亲手驱动：观众可以抓住拖动的零件。拖动只改时间 t——零件沿 simulate 给出的轨迹跟着手走。 */
+export interface DriveDef {
+  /** 零件 id（有副本时任一副本都可抓） */
+  part: string
+  /** 提示语，悬停与首次进入时显示，如「推拉横把」 */
+  hint: string
+  /** 提示标记的位置（零件局部坐标，mm），应落在零件实体上、运动明显的地方。省略时取运动幅度最大处 */
+  anchor?: Vec3
+  /**
+   * 求速度的时间尺度（模型时间）。省略 = 按单步的几分之一。零件「一步一停」地走（分针随擒纵一跳一跳）时，
+   * 用一个小循环的长度求平均速度，否则停着的那几刻拖不动。
+   */
+  scale?: number
+}
+
 export interface AuditDef {
   /** 机械：啮合或接触的零件对，按相位采样检查干涉（0.5%） */
   contacts?: [string, string][]
@@ -281,6 +296,8 @@ export interface ExhibitDef<S = any, C = any> {
   section?: SectionDef
   /** 预设机位（可选）：界面上一排一点即达的按钮，「全景」由界面自带 */
   views?: ViewPreset[]
+  /** 亲手驱动（可选）：可拖动的零件与提示语 */
+  drive?: DriveDef[]
   /** 审计配置 */
   audit?: AuditDef
 }

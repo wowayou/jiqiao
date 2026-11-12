@@ -18,13 +18,17 @@ import {
   PlaneGeometry,
   Quaternion,
   Sphere,
+  Vector2,
   Vector3,
   type Object3D,
 } from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
-import { evaluateScene, instancesOf, splitRef, type PartInstance } from '../exhibit/scene'
-import { tourTick } from '../exhibit/tour'
-import type { AnyExhibit, FeatureDef } from '../exhibit/types'
+import { basePose, evaluateScene, instancesOf, splitRef, type PartInstance } from '../exhibit/scene'
+import { tourDomain, tourTick } from '../exhibit/tour'
+import type { Vec2 } from '../kinematics/vec'
+import { STILL_FRACTION, peakSpeed, solveDrag } from './drive'
+import { stepSize } from './timeline'
+import type { AnyExhibit, DriveDef, FeatureDef } from '../exhibit/types'
 import type { Vec3 } from '../kinematics/vec'
 import { buildGeometries, disposeGeometries, type PartGeometry } from './buildGeometry'
 import { activeStepIds, computeFocus } from './focus'
@@ -542,6 +546,16 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
     const now = performance.now()
     if (now - lastSnap.current > 100) {
       lastSnap.current = now
+      // 可拖零件提示点的屏幕位置，挂在画布上供端到端测试读取（不参与渲染逻辑）
+      if (drives.length) {
+        const el = gl.domElement
+        el.dataset.driveAnchors = JSON.stringify(
+          drives.map((d) => {
+            const w = d.it.group.localToWorld(d.anchor.clone()).project(camera)
+            return { part: d.def.part, x: Math.round(((w.x + 1) / 2) * el.clientWidth), y: Math.round(((1 - w.y) / 2) * el.clientHeight) }
+          }),
+        )
+      }
       const prev = st.activeSteps
       const same = prev.length === active.length && prev.every((x, i) => x === active[i])
       store.setState(same ? { snapshot: s } : { snapshot: s, activeSteps: active })
@@ -597,6 +611,155 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
     return first?.id ?? null
   }
 
+  // —— 亲手驱动 ——
+  // 抓住可拖零件上的一点拖动：每次指针移动求 dt（drive.ts），只改时间 t；零件的运动仍全部来自 simulate。
+  const drives = useMemo(() => {
+    const domain = tourDomain(def)
+    return (def.drive ?? []).flatMap((d) => {
+      const it = insts.find((i) => i.inst.part.id === d.part)
+      if (!it) return []
+      return [{ def: d, it, anchor: d.anchor ? new Vector3(...d.anchor) : autoAnchor(def, it, domain) }]
+    })
+  }, [def, insts])
+  const driveOf = (id: string | null) => (id ? drives.find((d) => d.def.part === id) : undefined)
+  const canDrive = () => store.getState().explode < 0.001
+
+  /** 局部点在时刻 t 的屏幕坐标（相对画布，CSS px）。位姿直接由 simulate 求，不依赖此刻网格的位置。 */
+  const projectAt = (it: Inst, local: Vector3, t: number): Vec2 | null => {
+    const s = def.simulate(wrapT(def, t), store.getState().controls)
+    const pose = basePose(it.inst.part, s, it.inst.copy)
+    const w = local.clone()
+    if (pose.q) w.applyQuaternion(new Quaternion(...pose.q))
+    w.add(new Vector3(...pose.p)).project(camera)
+    if (w.z > 1 || w.z < -1) return null
+    const el = gl.domElement
+    return [((w.x + 1) / 2) * el.clientWidth, ((1 - w.y) / 2) * el.clientHeight]
+  }
+
+  // 屏幕上一点看到的第一个零件表面（让开的、剖切切掉的不算）
+  const surfaceAt = (clientX: number, clientY: number): { it: Inst; point: Vector3 } | null => {
+    const r = gl.domElement.getBoundingClientRect()
+    const ray = new Raycaster()
+    ray.setFromCamera(new Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1), camera)
+    const fade = new Set(store.getState().fadeParts)
+    const meshes = insts.filter((i) => visibleInScene(i.group) && !fade.has(i.inst.part.id)).map((i) => i.mesh)
+    for (const h of ray.intersectObjects(meshes, false)) {
+      if (lib.clipping.length && plane.distanceToPoint(h.point) < 0) continue
+      const it = insts.find((i) => i.mesh === h.object)
+      return it ? { it, point: h.point } : null
+    }
+    return null
+  }
+
+  const suppressClick = useRef(false)
+  useEffect(() => {
+    const host = gl.domElement.parentElement
+    if (!host || drives.length === 0) return
+    let drag: {
+      id: number
+      drive: DriveDef
+      it: Inst
+      local: Vector3
+      offset: Vec2
+      x0: number
+      y0: number
+      moved: boolean
+      h: number
+      maxDt: number
+      minSpeed: number
+    } | null = null
+    const rel = (e: PointerEvent): Vec2 => {
+      const r = gl.domElement.getBoundingClientRect()
+      return [e.clientX - r.left, e.clientY - r.top]
+    }
+    const end = () => {
+      if (!drag) return
+      if (drag.moved) {
+        suppressClick.current = true
+        setTimeout(() => (suppressClick.current = false), 400)
+        store.getState().markDriveSeen()
+      }
+      drag = null
+      if (controls) controls.enabled = true
+      gl.domElement.style.cursor = ''
+      store.setState({ dragging: null })
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+    const onMove = (e: PointerEvent) => {
+      if (!drag || e.pointerId !== drag.id) return
+      const [x, y] = rel(e)
+      if (!drag.moved) {
+        // 按下后挪动 3 px 才算拖动：原地点一下仍是选中零件
+        if (Math.hypot(x - drag.x0, y - drag.y0) < 3) return
+        drag.moved = true
+        store.getState().setPlaying(false)
+        store.setState({ dragging: drag.drive.part })
+        gl.domElement.style.cursor = 'grabbing'
+      }
+      const st = store.getState()
+      const d = drag
+      const res = solveDrag({
+        project: (t) => projectAt(d.it, d.local, t),
+        t: st.t,
+        target: [x - d.offset[0], y - d.offset[1]],
+        h: d.h,
+        minSpeed: d.minSpeed,
+        maxDt: d.maxDt,
+        bounds: def.timeline.kind === 'assembly' ? [0, 1] : undefined,
+      })
+      if (res.dt !== 0) st.setT(st.t + res.dt)
+    }
+    const onUp = (e: PointerEvent) => {
+      if (drag && e.pointerId === drag.id) end()
+    }
+    const onDown = (e: PointerEvent) => {
+      if (drag) return
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      if (!canDrive()) return
+      const hit = surfaceAt(e.clientX, e.clientY)
+      const drive = hit && driveOf(hit.it.inst.part.id)
+      if (!hit || !drive) return
+      // 落在可拖零件上：这一次按下是拖零件，不是转视角（轨道控制器在它自己的按下处理里看到 enabled = false 就不接手）
+      if (controls) controls.enabled = false
+      const local = hit.it.group.worldToLocal(hit.point.clone())
+      const st = store.getState()
+      const span = tourDomain(def)
+      const h = drive.def.scale ?? stepSize(def) / 8
+      const p0 = projectAt(hit.it, local, st.t)
+      const [x0, y0] = rel(e)
+      const peak = peakSpeed((t) => projectAt(hit.it, local, t), st.t - span.length / 2, span.length, h)
+      drag = {
+        id: e.pointerId,
+        drive: drive.def,
+        it: hit.it,
+        local,
+        offset: p0 ? [x0 - p0[0], y0 - p0[1]] : [0, 0],
+        x0,
+        y0,
+        moved: false,
+        h,
+        // 一次最多走小循环的 1/4；一步一停的零件（scale）按它的尺度放宽
+        maxDt: Math.max(span.length / 4, (drive.def.scale ?? 0) * 30),
+        minSpeed: Math.max(1e-9, peak * STILL_FRACTION),
+      }
+      window.addEventListener('pointermove', onMove)
+      window.addEventListener('pointerup', onUp)
+      window.addEventListener('pointercancel', onUp)
+    }
+    host.addEventListener('pointerdown', onDown, { capture: true })
+    return () => {
+      host.removeEventListener('pointerdown', onDown, { capture: true })
+      end()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drives, controls, gl, camera, def, store])
+
+  const driveSeen = useStage((s) => s.driveSeen)
+  const explodeNow = useStage((s) => s.explode)
+  const showDrivePins = !driveSeen && explodeNow < 0.001
+
   const selected = useStage((s) => s.selected)
   const pinned = useStage((s) => s.pinnedStep)
   const activeSteps = useStage((s) => s.activeSteps)
@@ -621,14 +784,21 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
           e.stopPropagation()
           const id = pick(e)
           if (store.getState().hovered !== id) store.getState().hover(id)
-          gl.domElement.style.cursor = id ? 'pointer' : ''
+          if (store.getState().dragging) return
+          // 可拖零件：手形光标
+          gl.domElement.style.cursor = id ? (driveOf(id) && canDrive() ? 'grab' : 'pointer') : ''
         }}
         onPointerOut={() => {
           store.getState().hover(null)
-          gl.domElement.style.cursor = ''
+          if (!store.getState().dragging) gl.domElement.style.cursor = ''
         }}
         onClick={(e: ThreeEvent<MouseEvent>) => {
           e.stopPropagation()
+          // 刚拖完零件松手：不当成点选
+          if (suppressClick.current) {
+            suppressClick.current = false
+            return
+          }
           const id = pick(e)
           store.getState().select(id)
         }}
@@ -642,10 +812,25 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
         }}
       />
       <primitive object={capGroup} />
+      {showDrivePins &&
+        // 同一句提示只标一处（左右两个足轮只标第一个）
+        drives.filter((d, i) => drives.findIndex((x) => x.def.hint === d.def.hint) === i).map((d) => (
+          <Fragment key={`drive-${d.def.part}`}>
+            {createPortal(
+              <Html position={[d.anchor.x, d.anchor.y, d.anchor.z]} center zIndexRange={[19, 0]} pointerEvents="none" wrapperClass="no-hit">
+                <div className="drive-pin" role="note" data-drive={d.def.part}>
+                  <span className="drive-ring" aria-hidden />
+                  <span className="drive-hint">{d.def.hint}</span>
+                </div>
+              </Html>,
+              d.it.group,
+            )}
+          </Fragment>
+        ))}
       {labels.map(({ it, feature }, i) => (
         <Fragment key={`${it.inst.key}#${feature.id}`}>
           {createPortal(
-            <Html position={feature.anchor} center zIndexRange={[20, 0]}>
+            <Html position={feature.anchor} center zIndexRange={[20, 0]} pointerEvents="none" wrapperClass="no-hit">
               <div className="feature-pin" role="note">
                 <span className="feature-dot" aria-hidden />
                 {/* 多个标注时错开高度，避免互相遮挡 */}
@@ -665,4 +850,39 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
 function visibleInScene(o: Object3D | null): boolean {
   for (let x = o; x; x = x.parent) if (!x.visible) return false
   return true
+}
+
+/**
+ * 没写 anchor 的可拖零件：在推导范围里取样，挑运动幅度最大的顶点，再往零件包围盒中心收 3%（落在实体里，
+ * 投到屏幕上仍在零件轮廓内）。只用于提示标记的位置。
+ */
+function autoAnchor(def: AnyExhibit, it: Inst, domain: { start: number; length: number }): Vector3 {
+  const geo = it.mesh.geometry as BufferGeometry
+  const pos = geo.getAttribute('position')
+  const stride = Math.max(1, Math.floor(pos.count / 400))
+  const times = Array.from({ length: 12 }, (_, k) => domain.start + (domain.length * k) / 12)
+  const poses = times.map((t) => basePose(it.inst.part, def.simulate(wrapT(def, t), def.defaults), it.inst.copy))
+  const v = new Vector3()
+  const w = new Vector3()
+  let best = -1
+  const out = new Vector3()
+  for (let i = 0; i < pos.count; i += stride) {
+    v.fromBufferAttribute(pos, i)
+    let lo = new Vector3(Infinity, Infinity, Infinity)
+    let hi = new Vector3(-Infinity, -Infinity, -Infinity)
+    for (const p of poses) {
+      w.copy(v)
+      if (p.q) w.applyQuaternion(new Quaternion(...p.q))
+      w.add(new Vector3(...p.p))
+      lo = lo.min(w)
+      hi = hi.max(w)
+    }
+    const amp = hi.distanceTo(lo)
+    if (amp > best + 1e-6) {
+      best = amp
+      out.copy(v)
+    }
+  }
+  const c = geo.boundingBox!.getCenter(new Vector3())
+  return out.lerp(c, 0.03)
 }
