@@ -27,6 +27,7 @@ import { basePose, evaluateScene, instancesOf, splitRef, type PartInstance } fro
 import { tourDomain, tourTick } from '../exhibit/tour'
 import type { Vec2 } from '../kinematics/vec'
 import { STILL_FRACTION, peakSpeed, solveDrag } from './drive'
+import { fitView } from './framing'
 import { stepSize } from './timeline'
 import type { AnyExhibit, DriveDef, FeatureDef } from '../exhibit/types'
 import type { Vec3 } from '../kinematics/vec'
@@ -208,6 +209,9 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
   const camGoal = useStage((s) => s.camGoal)
   const anim = useRef<{ t0: number; dur: number; t: Vector3; d0: Vector3; d1: Vector3; dist0: number; dist1: number; from: Vector3; to: Vector3 } | null>(null)
   const userMoved = useRef(false)
+  // 最近一次「讲解取景」框住的角点：只用来在画布上挂一个读数（data-fit-max，端到端测试据此确认没有零件出画）
+  const fitPts = useRef<Vector3[] | null>(null)
+  const lastGoal = useRef<CameraGoal | null>(null)
 
   const metrics = () => {
     const W = Math.max(1, gl.domElement.clientWidth)
@@ -306,9 +310,11 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
 
   // 一组零件在若干时刻扫过的范围（讲解：镜头要框住这一环在整个时间窗里的运动，而不只是此刻的位置）。
   // 位姿直接由 simulate 求，不依赖此刻网格的位置；包围盒用局部包围盒的 8 个角点，略松但足够取景。
-  const partsSphereAt = (ids: string[], features: string[], times: number[]): Sphere | null => {
+  // 同时返回这些时刻所有零件局部包围盒的世界角点（points）：讲解按它们投影后的范围取景，比包围球紧
+  const partsSphereAt = (ids: string[], features: string[], times: number[]): (Sphere & { points?: Vector3[]; minR?: number }) | null => {
     const st = store.getState()
     const box = new Box3()
+    const points: Vector3[] = []
     const set = new Set(ids)
     const featurePts: Vector3[] = []
     const m = new Group()
@@ -322,7 +328,9 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
         if (ist.pose.q) m.quaternion.set(...ist.pose.q)
         else m.quaternion.identity()
         m.updateMatrixWorld()
-        box.union(geoms.get(it.inst.part.id)!.surface.boundingBox!.clone().applyMatrix4(m.matrixWorld))
+        const local = geoms.get(it.inst.part.id)!.surface.boundingBox!
+        box.union(local.clone().applyMatrix4(m.matrixWorld))
+        for (let i = 0; i < 8; i++) points.push(new Vector3(i & 1 ? local.max.x : local.min.x, i & 2 ? local.max.y : local.min.y, i & 4 ? local.max.z : local.min.z).applyMatrix4(m.matrixWorld))
       }
       for (const ref of features) {
         const [pid, fid] = splitRef(ref)
@@ -339,12 +347,20 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
     }
     if (featurePts.length && !box.isEmpty()) {
       const sz = box.getSize(new Vector3()).length()
-      if (sz > 600 && ids.every((i) => features.some((f) => splitRef(f)[0] === i))) box.makeEmpty()
+      if (sz > 600 && ids.every((i) => features.some((f) => splitRef(f)[0] === i))) {
+        // 整件很大、只想指出其上的特征：以特征点为准（整件的角点不参与取景）
+        box.makeEmpty()
+        points.length = 0
+      }
     }
     for (const p of featurePts) box.expandByPoint(p)
     if (box.isEmpty()) return null
-    const sph = box.getBoundingSphere(new Sphere())
+    const sph: Sphere & { points?: Vector3[]; minR?: number } = box.getBoundingSphere(new Sphere())
     if (featurePts.length) sph.radius = Math.max(sph.radius, 70)
+    // 特征点本身参与取景；它们的最小取景半径沿用球取景的 70 mm 下限（见 handleGoal 的 minR）
+    for (const p of featurePts) points.push(p.clone())
+    sph.points = points
+    sph.minR = featurePts.length ? 70 : 12
     return sph
   }
 
@@ -363,7 +379,8 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
     return out
   }
 
-  const handleGoal = (g: CameraGoal) => {
+  const handleGoal = (g: CameraGoal, instant = false) => {
+    fitPts.current = null
     if (g.kind === 'fit') {
       const dir = defaultDir()
       goTo(frame.center, dir, fitBox(frame.center, dir))
@@ -385,11 +402,30 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
         const blocked = occludersOf(camera.position, sph.center, new Set(g.ids)).length > 0
         if (frac > 0.1 && !blocked) return
       }
-      const dist = fitSphere(Math.max(sph.radius, 12))
-      const camPos = sph.center.clone().addScaledVector(dir, dist)
-      goTo(sph.center, dir, dist)
+      let dist = fitSphere(Math.max(sph.radius, 12))
+      let target = sph.center
+      // 讲解（带时间窗）：按全部角点投影后的范围取景，注视点也平移到范围中央——细长或偏一侧的一环不再被包围球撑得很松。
+      // 只在比球取景更近时采用（球取景总是装得下，保险）；也不近于 12 mm 半径的取景下限。
+      const pts = (sph as { points?: Vector3[] }).points
+      if (pts?.length) {
+        const fit = fitView(
+          pts.map((p) => [p.x, p.y, p.z] as Vec3),
+          [sph.center.x, sph.center.y, sph.center.z],
+          [dir.x, dir.y, dir.z],
+          m.tanH,
+          m.tanVu,
+        )
+        const tight = Math.max(fit.dist * 1.1, fitSphere((sph as { minR?: number }).minR ?? 12))
+        if (tight < dist) {
+          dist = tight
+          target = new Vector3(...fit.target)
+        }
+        fitPts.current = pts
+      }
+      const camPos = target.clone().addScaledVector(dir, dist)
+      goTo(target, dir, dist, instant)
       // 凑近之后仍被挡着的，让开（半透明）
-      const occ = occludersOf(camPos, sph.center, new Set(g.ids))
+      const occ = occludersOf(camPos, target, new Set(g.ids))
       if (occ.length) {
         const prev = store.getState().fadeParts
         store.getState().setFade([...new Set([...prev, ...occ])])
@@ -406,7 +442,12 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
       userMoved.current = true
       return
     }
-    if (userMoved.current) return
+    if (userMoved.current) {
+      // 讲解取景之后浮层变了高度（如机位条多出「恢复遮挡」按钮而折行）：观众没动过相机时，按新的可用区域重新框一次，
+      // 否则画面会随浮层整体平移、把贴着边的零件挤出画外
+      if (fitPts.current && lastGoal.current) handleGoal(lastGoal.current, true)
+      return
+    }
     const dir = defaultDir()
     goTo(frame.center, dir, fitBox(frame.center, dir), true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -416,6 +457,7 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
     if (!camGoal || camGoal.nonce === doneNonce.current) return
     doneNonce.current = camGoal.nonce
     userMoved.current = true
+    lastGoal.current = camGoal
     handleGoal(camGoal)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [camGoal])
@@ -425,6 +467,7 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
     const onStart = () => {
       userMoved.current = true
       anim.current = null
+      fitPts.current = null
       store.getState().userMovedCamera()
     }
     controls.addEventListener('start', onStart)
@@ -488,6 +531,16 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
         ds.camAz = ((Math.atan2(o.x, o.z) * 180) / Math.PI).toFixed(1)
         ds.camTarget = `${controls.target.x.toFixed(0)},${controls.target.y.toFixed(0)},${controls.target.z.toFixed(0)}`
         ds.camAnim = anim.current ? '1' : '0'
+        // 讲解取景框住的角点投影到画布后，离中心最远的归一化坐标（≤ 1 即全部在画布内）
+        if (fitPts.current && !anim.current) {
+          const v = new Vector3()
+          let mx = 0
+          for (const p of fitPts.current) {
+            v.copy(p).project(camera)
+            mx = Math.max(mx, Math.abs(v.x), Math.abs(v.y))
+          }
+          ds.fitMax = mx.toFixed(3)
+        } else delete ds.fitMax
       }
       // 近远裁剪面随当前距离走：凑近几毫米的零件时不会被近平面切掉
       const dist = controls ? camera.position.distanceTo(controls.target) : 1000
@@ -796,6 +849,15 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
     return out
   }, [def, selected, pinned, insts])
 
+  // 标注与提示圈：同一句提示只标一处（左右两个足轮只标第一个）
+  const pinItems = useMemo(
+    () => (showDrivePins ? drives.filter((d, i) => drives.findIndex((x) => x.def.hint === d.def.hint) === i).map((d) => ({ key: `drive-${d.def.part}`, d })) : []),
+    [showDrivePins, drives],
+  )
+  const labelItems = useMemo(() => labels.map((l) => ({ key: `${l.it.inst.key}#${l.feature.id}`, ...l })), [labels])
+  const pinsLive = useDeferredRemoval(pinItems)
+  const labelsLive = useDeferredRemoval(labelItems)
+
   return (
     <>
       <primitive
@@ -832,23 +894,21 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
         }}
       />
       <primitive object={capGroup} />
-      {showDrivePins &&
-        // 同一句提示只标一处（左右两个足轮只标第一个）
-        drives.filter((d, i) => drives.findIndex((x) => x.def.hint === d.def.hint) === i).map((d) => (
-          <Fragment key={`drive-${d.def.part}`}>
-            {createPortal(
-              <Html position={[d.anchor.x, d.anchor.y, d.anchor.z]} center zIndexRange={[19, 0]} pointerEvents="none" wrapperClass="no-hit">
-                <div className="drive-pin" role="note" data-drive={d.def.part}>
-                  <span className="drive-ring" aria-hidden />
-                  <span className="drive-hint">{d.def.hint}</span>
-                </div>
-              </Html>,
-              d.it.group,
-            )}
-          </Fragment>
-        ))}
-      {labels.map(({ it, feature }, i) => (
-        <Fragment key={`${it.inst.key}#${feature.id}`}>
+      {pinsLive.map(({ key, d }) => (
+        <Fragment key={key}>
+          {createPortal(
+            <Html position={[d.anchor.x, d.anchor.y, d.anchor.z]} center zIndexRange={[19, 0]} pointerEvents="none" wrapperClass="no-hit">
+              <div className="drive-pin" role="note" data-drive={d.def.part}>
+                <span className="drive-ring" aria-hidden />
+                <span className="drive-hint">{d.def.hint}</span>
+              </div>
+            </Html>,
+            d.it.group,
+          )}
+        </Fragment>
+      ))}
+      {labelsLive.map(({ key, it, feature }, i) => (
+        <Fragment key={key}>
           {createPortal(
             <Html position={feature.anchor} center zIndexRange={[20, 0]} pointerEvents="none" wrapperClass="no-hit">
               <div className="feature-pin" role="note">
@@ -865,6 +925,32 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
       ))}
     </>
   )
+}
+
+/**
+ * 列表里被删掉的项留到下一个任务再卸载。
+ * 原因：drei 的 <Html> 在布局副作用的清理里同步卸载自己的 ReactDOM 根；若这次卸载正赶上 react-dom 在渲染或提交
+ * （场景由 R3F 的另一个 React 渲染器提交，二者可能嵌套），开发模式就会报
+ * 「Attempted to synchronously unmount a root while React was already rendering」。放到 setTimeout(0) 的新任务里卸载，
+ * 就不会与任何渲染嵌套；肉眼看不出延迟（一个任务不到一帧）。
+ */
+function useDeferredRemoval<T extends { key: string }>(items: T[]): T[] {
+  const kept = useRef(new Map<string, T>())
+  const [, bump] = useState(0)
+  const cur = new Set(items.map((i) => i.key))
+  const merged = new Map(items.map((i) => [i.key, i]))
+  for (const [k, v] of kept.current) if (!cur.has(k)) merged.set(k, v)
+  kept.current = merged
+  const pending = merged.size > items.length
+  useEffect(() => {
+    if (!pending) return
+    const timer = setTimeout(() => {
+      kept.current = new Map()
+      bump((n) => n + 1)
+    }, 0)
+    return () => clearTimeout(timer)
+  })
+  return [...merged.values()]
 }
 
 function visibleInScene(o: Object3D | null): boolean {

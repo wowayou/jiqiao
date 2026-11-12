@@ -326,6 +326,34 @@ test('暗色主题：文字、强调色对背景的对比度不低于 4.5:1，�
   expect(ratio(tokens['line-strong'], tokens.paper)).toBeGreaterThanOrEqual(3)
 })
 
+// —— 第五组：讲解自动取景（没有预设机位的环）——
+// data-fit-max：讲解取景框住的那一环的角点（整个时间窗里所有零件的包围盒角点）投影到画布后，离中心最远的归一化坐标。
+// ≤ 1：这一环没有零件出画；≥ 0.6：框得紧（改前，石磨第 1–3 环只有 0.37 左右、摆钟「摆定节拍」0.58）。
+for (const id of ids) {
+  test(`讲解自动取景 · ${id}：没有预设机位的环，零件全在画内且取景够紧`, async ({ page }) => {
+    test.setTimeout(240_000)
+    await openExhibit(page, id)
+    await page.getByTestId('tour-start').click()
+    const n = Number((await page.getByTestId('tour-count').innerText()).split('/')[1])
+    let checked = 0
+    for (let i = 0; i < n; i++) {
+      await expect(page.getByTestId('tour-count')).toHaveText(`${i + 1} / ${n}`)
+      const preset = (await page.locator('[data-view][aria-pressed="true"]').count()) > 0
+      if (!preset) {
+        // 相机到位、读数出来
+        await expect.poll(async () => page.locator('canvas').getAttribute('data-cam-anim'), { timeout: 30_000 }).toBe('0')
+        await expect.poll(async () => page.locator('canvas').getAttribute('data-fit-max'), { timeout: 30_000 }).not.toBeNull()
+        const v = Number(await page.locator('canvas').getAttribute('data-fit-max'))
+        expect(v, `第 ${i + 1} 环 fitMax=${v}`).toBeLessThanOrEqual(1)
+        expect(v, `第 ${i + 1} 环 fitMax=${v}`).toBeGreaterThanOrEqual(0.6)
+        checked++
+      }
+      if (i < n - 1) await page.getByTestId('tour-next').click()
+    }
+    expect(checked).toBeGreaterThan(0)
+  })
+}
+
 // —— 第三组：半透明零件 ——
 
 test('摆钟「擒纵」机位：表盘等让开（半透明），可一键恢复；画布非空白、无控制台错误', async ({ page }) => {
