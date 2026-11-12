@@ -75,6 +75,23 @@ function ExhibitView({ def }: { def: AnyExhibit }) {
   )
 }
 
+/** 几何生成中：说明正在生成第几个零件（及其名称），带进度条；不是空白 */
+function BuildStatus({ def, progress }: { def: AnyExhibit; progress: number }) {
+  const n = def.parts.length
+  const done = Math.min(n, Math.round(progress * n))
+  const current = def.parts[Math.min(n - 1, done)]
+  return (
+    <div className="stage-status" role="status" data-testid="stage-status" data-done={done}>
+      <div>
+        正在生成第 <b>{Math.min(n, done + 1)}</b> / {n} 个零件：{current.name}
+      </div>
+      <div className="build-bar" aria-hidden>
+        <span style={{ width: `${Math.round(progress * 100)}%` }} />
+      </div>
+    </div>
+  )
+}
+
 function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
   const { resolved } = useThemeCtx()
   const [tab, setTab] = useState<Tab>('chain')
@@ -167,7 +184,7 @@ function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
           {ready && <Toolbar def={def} />}
           {ready && <ViewBar def={def} />}
           {ready && <HoverTip def={def} />}
-          {!ready && !error && <div className="stage-status">正在构建几何… {Math.round(progress * 100)}%</div>}
+          {!ready && !error && <BuildStatus def={def} progress={progress} />}
           {error && (
             <div className="stage-status error" role="alert">
               {error}

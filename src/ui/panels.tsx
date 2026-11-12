@@ -336,7 +336,8 @@ function useInsetRef(edge: 'top' | 'bottom') {
       if (!parent) return
       const r = el.getBoundingClientRect()
       const pr = parent.getBoundingClientRect()
-      const px = edge === 'top' ? r.bottom - pr.top : pr.bottom - r.top
+      // 浮层被隐藏（display: none）时矩形全是 0：它不占地方，不能算成「整个画布都被挡住」
+      const px = r.width === 0 && r.height === 0 ? -6 : edge === 'top' ? r.bottom - pr.top : pr.bottom - r.top
       setInset({ [edge]: Math.max(0, Math.ceil(px) + 6) })
     }
     measure()
@@ -721,15 +722,19 @@ export function Readouts({ def }: { def: AnyExhibit }) {
     <div className="readouts" data-testid="readouts" data-open={open}>
       {open ? (
         <dl className="readout-grid" id="readout-grid" aria-label="读数">
-          {def.readouts.map((r) => (
-            <div key={r.label}>
-              <dt>{r.label}</dt>
-              <dd>
-                {r.value(snap)}
-                <ProvMark p={r.provenance} />
-              </dd>
-            </div>
-          ))}
+          {def.readouts.map((r) => {
+            const v = r.value(snap)
+            // 长读数（如榫卯「已锁住」的方向清单）独占一行，不把一格撑成六行高
+            return (
+              <div key={r.label} className={v.length > 26 ? 'wide' : undefined}>
+                <dt>{r.label}</dt>
+                <dd>
+                  {v}
+                  <ProvMark p={r.provenance} />
+                </dd>
+              </div>
+            )
+          })}
         </dl>
       ) : (
         <div className="readout-brief" id="readout-grid">

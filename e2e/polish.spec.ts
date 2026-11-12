@@ -227,6 +227,105 @@ test('点击目标：触屏（pointer: coarse）下按钮、下拉、滑块不�
   else expect(sizes.filter((s) => s.h > 40 && /\bbtn\b/.test(s.what) && !/chain-head/.test(s.what))).toEqual([])
 })
 
+// —— 第四组：缩略图、加载状态、过渡动效、暗色主题 ——
+
+test('首页：每张卡片有缩略图，当前主题那张加载成功，另一主题那张不显示；无横向溢出', async ({ page }) => {
+  const errors = trackErrors(page)
+  // 只在第一次设（重新加载时保留测试中途改的偏好）
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('jiqiao-theme')) localStorage.setItem('jiqiao-theme', 'light')
+  })
+  await page.goto('/')
+  const cards = page.locator('a.card')
+  expect(await cards.count()).toBe(ids.length)
+  for (const id of ids) {
+    const card = page.locator(`a.card[data-exhibit="${id}"]`)
+    await card.scrollIntoViewIfNeeded()
+    const light = card.locator('img.thumb-light')
+    await expect(light).toBeVisible()
+    await expect(card.locator('img.thumb-dark')).toBeHidden()
+    await expect.poll(() => light.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(100)
+  }
+  expect(await noOverflow(page)).toBeLessThanOrEqual(0)
+  // 切到深色：换成深色那张
+  await page.evaluate(() => {
+    localStorage.setItem('jiqiao-theme', 'dark')
+  })
+  await page.reload()
+  const card = page.locator(`a.card[data-exhibit="${ids[0]}"]`)
+  await expect(card.locator('img.thumb-dark')).toBeVisible()
+  await expect(card.locator('img.thumb-light')).toBeHidden()
+  await expect.poll(() => card.locator('img.thumb-dark').evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(100)
+  expect(errors).toEqual([])
+})
+
+test('加载状态：几何生成中显示「第几个零件」与名称和进度条，而不是空白', async ({ page }) => {
+  // 把几何生成里「让出主线程」的 setTimeout(0) 拉长到 120 ms，生成过程才停得住让测试看到
+  await page.addInitScript(() => {
+    const orig = window.setTimeout
+    // @ts-expect-error 测试里替换全局函数
+    window.setTimeout = (fn: TimerHandler, ms?: number, ...rest: unknown[]) => orig(fn, ms === 0 ? 120 : ms, ...rest)
+  })
+  await page.goto('/#/e/bai-zhong')
+  const status = page.getByTestId('stage-status')
+  await expect(status).toContainText(/正在生成第 \d+ \/ \d+ 个零件：\S+/)
+  const first = Number(await status.getAttribute('data-done'))
+  await expect.poll(async () => Number((await status.getAttribute('data-done')) ?? 0), { timeout: 30_000 }).toBeGreaterThan(first)
+  await expect(status.locator('.build-bar span')).toBeAttached()
+  await expect(page.getByTestId('stage')).toHaveAttribute('data-ready', 'true', { timeout: 60_000 })
+  await expect(status).toHaveCount(0)
+})
+
+test('过渡动效 150–250 ms；减少动效下全部关闭', async ({ browser, baseURL }) => {
+  const ms = (s: string) => s.split(',').map((x) => (x.trim().endsWith('ms') ? parseFloat(x) : parseFloat(x) * 1000))
+  for (const reduce of [false, true]) {
+    const ctx = await browser.newContext({ reducedMotion: reduce ? 'reduce' : 'no-preference', viewport: { width: 1440, height: 900 }, baseURL })
+    const page = await ctx.newPage()
+    await page.goto('/')
+    const durations = await page.evaluate(() => {
+      const card = document.querySelector('a.card')!
+      const btn = document.querySelector('.btn')!
+      return { card: getComputedStyle(card).transitionDuration, thumb: getComputedStyle(document.querySelector('.thumb')!).transitionDuration, btn: getComputedStyle(btn).transitionDuration }
+    })
+    for (const d of Object.values(durations)) {
+      for (const v of ms(d)) {
+        if (reduce) expect(v).toBe(0)
+        else {
+          expect(v).toBeGreaterThanOrEqual(150)
+          expect(v).toBeLessThanOrEqual(250)
+        }
+      }
+    }
+    await ctx.close()
+  }
+})
+
+test('暗色主题：文字、强调色对背景的对比度不低于 4.5:1，按钮边框不低于 3:1', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('jiqiao-theme', 'dark'))
+  await page.goto('/')
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  const tokens = await page.evaluate(() => {
+    const cs = getComputedStyle(document.documentElement)
+    const out: Record<string, string> = {}
+    for (const k of ['paper', 'paper-2', 'paper-3', 'ink', 'ink-2', 'ink-3', 'accent', 'line-strong']) out[k] = cs.getPropertyValue(`--${k}`).trim()
+    return out
+  })
+  const lum = (hex: string) => {
+    const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+  }
+  const ratio = (a: string, b: string) => {
+    const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p)
+    return (x + 0.05) / (y + 0.05)
+  }
+  // 小字常出现在 paper、paper-2（卡片、讲解条、协同链）上；paper-3 只用于少数强调块，给 ink-3 以外的文字色验
+  for (const fg of ['ink', 'ink-2', 'ink-3', 'accent']) {
+    for (const bg of ['paper', 'paper-2']) expect(ratio(tokens[fg], tokens[bg]), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5)
+  }
+  for (const fg of ['ink', 'ink-2', 'ink-3']) expect(ratio(tokens[fg], tokens['paper-3']), `${fg} on paper-3`).toBeGreaterThanOrEqual(4.5)
+  expect(ratio(tokens['line-strong'], tokens.paper)).toBeGreaterThanOrEqual(3)
+})
+
 // —— 第三组：半透明零件 ——
 
 test('摆钟「擒纵」机位：表盘等让开（半透明），可一键恢复；画布非空白、无控制台错误', async ({ page }) => {

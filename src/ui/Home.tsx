@@ -35,17 +35,24 @@ export function Home() {
                 .map((m) => (
                   <li key={m.id}>
                     <Link href={`/e/${m.id}`} className="card" data-exhibit={m.id}>
-                      <h3>{m.title}</h3>
-                      <div className="era">
-                        {m.era}
-                        {m.hypothesis && (
-                          <>
-                            {' '}
-                            <span className="badge">复原假说</span>
-                          </>
-                        )}
-                      </div>
-                      <p className="subtitle">{m.subtitle}</p>
+                      {/* 缩略图是装饰（标题已说明内容）：从真实渲染截取（scripts/thumbnails.mjs），深浅主题各一张 */}
+                      <span className="card-thumb" aria-hidden>
+                        <img className="thumb thumb-light" src={`${import.meta.env.BASE_URL}thumbs/${m.id}-light.jpg`} alt="" width={600} height={400} loading="lazy" decoding="async" />
+                        <img className="thumb thumb-dark" src={`${import.meta.env.BASE_URL}thumbs/${m.id}-dark.jpg`} alt="" width={600} height={400} loading="lazy" decoding="async" />
+                      </span>
+                      <span className="card-body">
+                        <span className="era">
+                          {m.era}
+                          {m.hypothesis && (
+                            <>
+                              {' '}
+                              <span className="badge">复原假说</span>
+                            </>
+                          )}
+                        </span>
+                        <h3>{m.title}</h3>
+                        <p className="subtitle">{m.subtitle}</p>
+                      </span>
                     </Link>
                   </li>
                 ))}
