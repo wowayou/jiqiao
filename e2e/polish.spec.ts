@@ -1,7 +1,7 @@
 // 第二轮 B「视觉精修」的浏览器测试。桌面 1440 与手机 390 两个项目都会跑。
 // 无头浏览器是软件渲染：等待一律用状态断言或 expect.poll，不用固定长 sleep。
 import { expect, test, type Page } from '@playwright/test'
-import { exhibitIds, trackErrors } from './helpers'
+import { distinctColors, exhibitIds, trackErrors } from './helpers'
 
 const ids = exhibitIds()
 
@@ -225,4 +225,17 @@ test('点击目标：触屏（pointer: coarse）下按钮、下拉、滑块不�
   expect(sizes.length).toBeGreaterThan(10)
   if (coarse) expect(sizes.filter((s) => s.h < 43.5)).toEqual([])
   else expect(sizes.filter((s) => s.h > 40 && /\bbtn\b/.test(s.what) && !/chain-head/.test(s.what))).toEqual([])
+})
+
+// —— 第三组：半透明零件 ——
+
+test('摆钟「擒纵」机位：表盘等让开（半透明），可一键恢复；画布非空白、无控制台错误', async ({ page }) => {
+  const errors = trackErrors(page)
+  await openExhibit(page, 'bai-zhong')
+  await page.locator('[data-view="escapement"]').click()
+  await expect(page.locator('[data-view="escapement"]')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('clear-fade')).toContainText('恢复遮挡')
+  await expect.poll(async () => page.locator('canvas').getAttribute('data-cam-anim'), { timeout: 30_000 }).toBe('0')
+  expect(await distinctColors(page, page.locator('canvas'))).toBeGreaterThan(50)
+  expect(errors).toEqual([])
 })

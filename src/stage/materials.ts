@@ -39,6 +39,10 @@ export const PALETTE: Record<MaterialKey, { color: string; roughness: number; me
   dial: { color: '#f1ece0', roughness: 0.8, metalness: 0 },
 }
 
+/** 让开（半透明）的零件：表面与棱线一起淡下去。棱线不透明度与表面同量级，免得「实线框架套着空壳」盖在要看的零件上 */
+export const FADED_SURFACE = 0.07
+export const FADED_LINE = 0.13
+
 export type Variant = 'normal' | 'accent' | 'faded'
 
 export interface SceneTheme {
@@ -89,7 +93,7 @@ export class MaterialLibrary {
         roughness: p.roughness,
         metalness: p.metalness,
         transparent: v === 'faded',
-        opacity: v === 'faded' ? 0.14 : 1,
+        opacity: v === 'faded' ? FADED_SURFACE : 1,
         depthWrite: v !== 'faded',
         polygonOffset: true,
         polygonOffsetFactor: 1,
@@ -139,7 +143,7 @@ export class MaterialLibrary {
       m = new LineBasicMaterial({
         color,
         transparent: v === 'faded',
-        opacity: v === 'faded' ? 0.35 : v === 'normal' ? 0.75 : 1,
+        opacity: v === 'faded' ? FADED_LINE : v === 'normal' ? 0.75 : 1,
         depthWrite: v !== 'faded',
       })
       m.clippingPlanes = this.clip

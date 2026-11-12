@@ -9,8 +9,13 @@ export interface PartGeometry {
   edges: BufferGeometry
 }
 
-/** 墨线：二面角大于此值的棱才描边（圆柱的小平面之间不描） */
-const EDGE_ANGLE = 28
+/**
+ * 墨线：二面角大于此值的棱才描边（圆柱等曲面的小平面之间不描）。
+ * 数棱实测（六个展品逐零件）：阈值 28°→35° 棱数不变，35°→45° 时磨盘、石磨、推杆等圆柱件的棱数明显减少——
+ * 它们的分面夹角约 36–40°，原阈值会在曲面上每个分面描一条线，贴近看就是一片条纹。取 40°，
+ * 齿轮、方料等多数零件的棱数在 28°→45° 间几乎不变（榫卯件未逐一统计）。
+ */
+export const EDGE_ANGLE = 40
 
 export async function buildGeometries(
   def: AnyExhibit,
