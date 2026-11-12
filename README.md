@@ -58,7 +58,8 @@ npm run dev
 - `npm run typecheck`：类型检查
 - `npm test`：单元测试与几何审计（看审计数值加 `--silent=false`）
 - `npm run e2e`：浏览器测试。需先 `npm run build`，并用 `npx playwright install chromium-headless-shell` 装好浏览器；使用 5183 端口，可用 `E2E_PORT` 改；按桌面 1440 与手机 390 两种宽度遍历所有展品
-- `npm run deploy`：手动发布到 GitHub Pages。本地构建后把 `dist/` 整体覆盖到 `gh-pages` 分支；需要对仓库有推送权限，工作区须干净。不经过 CI，推送 `main` 不会自动更新线上版本
+
+发布：推送 `main` 后由 GitHub Actions（`.github/workflows/deploy.yml`）自动构建并发布到 GitHub Pages，类型检查或单元测试不过就不发布；只改文档不触发。浏览器测试不在 CI 里跑，发布前在本地跑 `npm run e2e`。
 
 ## 结构
 
