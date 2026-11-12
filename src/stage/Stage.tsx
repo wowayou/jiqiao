@@ -377,7 +377,7 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
       const sph = g.times?.length ? partsSphereAt(g.ids, g.features ?? [], g.times) : partsSphere(g.ids, g.features)
       if (!sph) return
       const m = metrics()
-      const dir = currentDir()
+      const dir = g.fromDefault ? defaultDir() : currentDir()
       if (g.auto) {
         // 点协同链：够大又没被挡住就不动镜头，免得打扰
         const dist = camera.position.distanceTo(sph.center)
@@ -761,7 +761,9 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
 
   const driveSeen = useStage((s) => s.driveSeen)
   const explodeNow = useStage((s) => s.explode)
-  const showDrivePins = !driveSeen && explodeNow < 0.001
+  const touring = useStage((s) => s.tour !== null)
+  // 讲解中不出提示标记：画面只留给这一环
+  const showDrivePins = !driveSeen && explodeNow < 0.001 && !touring
 
   const selected = useStage((s) => s.selected)
   const pinned = useStage((s) => s.pinnedStep)

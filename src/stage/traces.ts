@@ -170,6 +170,7 @@ export function sampleTracesAsync(
 /** 数值显示：大数不带小数，小数按量级给 1–2 位 */
 export function formatTraceValue(v: number, unit = ''): string {
   const a = Math.abs(v)
+  if (Number.isInteger(v)) return `${v}${unit}`
   const s = a >= 100 ? v.toFixed(0) : a >= 10 ? v.toFixed(1) : v.toFixed(2)
   return `${s}${unit}`
 }

@@ -60,6 +60,7 @@ export default defineExhibit<DulunState, DulunControls>({
       text: CHAIN_TEXT.legs,
       provenance: 'model',
       active: (s) => s.legKg > 0.05 || s.stage === 'lower',
+      view: 'legs',
     },
   ],
   readouts: [
@@ -85,6 +86,16 @@ export default defineExhibit<DulunState, DulunControls>({
   ],
   sources,
   view: { dir: [0.45, 0.4, 1], target: [0, 330, 0] },
+  views: [
+    {
+      id: 'legs',
+      label: '支脚',
+      target: [-650, 280, 0],
+      size: 1100,
+      dir: [0.1, 0.12, 1],
+      note: '从侧面平看：车把放下时支脚着地、抬起时离地',
+    },
+  ],
   traces: [
     {
       id: 'hand',

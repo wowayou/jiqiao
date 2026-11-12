@@ -24,7 +24,7 @@ export interface SectionState {
 export type CameraGoal = { nonce: number } & (
   | { kind: 'fit' }
   /** 凑近一组零件，保持当前视线方向，绕它们旋转；auto 表示「只在看不清时才动」（点协同链） */
-  | { kind: 'parts'; ids: string[]; features?: string[]; auto?: boolean; times?: number[] }
+  | { kind: 'parts'; ids: string[]; features?: string[]; auto?: boolean; times?: number[]; fromDefault?: boolean }
   | { kind: 'preset'; id: string }
 )
 
@@ -108,7 +108,7 @@ export interface StageActions {
   /** 套用预设机位（'all' = 全景）：相机、爆炸、剖切、让开的零件、选中一起到位。 */
   applyView(id: string): void
   /** 协同链一环：必要时（太小或被挡）把相机带过去；force 时一定去。 */
-  lookAtStep(id: string, force?: boolean, times?: number[]): void
+  lookAtStep(id: string, force?: boolean, times?: number[], fromDefault?: boolean): void
   clearFade(): void
   setFade(ids: string[]): void
   setInset(p: Partial<{ top: number; bottom: number }>): void
@@ -248,13 +248,13 @@ export function createStageStore(def: AnyExhibit): StageStore {
         section: { on: Boolean(custom), axis: 'default', flip: false, offset: 0, custom },
       })
     },
-    lookAtStep: (id, force, times) => {
+    lookAtStep: (id, force, times, fromDefault) => {
       const st = get()
       const step = st.def.chain.find((c) => c.id === id)
       if (!step) return
       const ids = step.parts.map((r) => splitRef(r)[0])
       const features = step.parts.filter((r) => splitRef(r)[1])
-      set({ camGoal: goal(st, { kind: 'parts', ids: [...new Set(ids)], features, auto: !force, times }) })
+      set({ camGoal: goal(st, { kind: 'parts', ids: [...new Set(ids)], features, auto: !force, times, fromDefault }) })
     },
     clearFade: () => set({ fadeParts: [] }),
     setFade: (ids) => set({ fadeParts: ids }),
@@ -347,7 +347,8 @@ export function createStageStore(def: AnyExhibit): StageStore {
         })
         const n = 8
         const times = Array.from({ length: n + 1 }, (_, k) => wrapT(st.def, p.window[0] + ((p.window[1] - p.window[0]) * k) / n))
-        get().lookAtStep(step.id, true, times)
+        // 从展品的默认方向看（不沿用上一环机位的方向，免得隔着别的零件看）
+        get().lookAtStep(step.id, true, times, true)
       }
     },
     tourNext: (dir) => {

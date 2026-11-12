@@ -1046,6 +1046,13 @@ input[type='range'] {
   .toolgroup .field input[type='range'] {
     width: 80px;
   }
+  /* 加了「讲解」之后工具条第一组仍收在一行里 */
+  .stage-overlay > .toolgroup:first-child .field input[type='range'] {
+    width: 52px;
+  }
+  .stage-overlay > .toolgroup:first-child .btn {
+    padding: 0 var(--s2);
+  }
   input[type='range'] {
     min-height: 28px;
   }

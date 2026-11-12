@@ -216,7 +216,7 @@ export default defineExhibit<CarState, CarControls>({
       value: (s) => ((s.ang.zhongTeeth % 100) + 100) % 100,
       wrap: 100,
       provenance: 'calc',
-      note: '台阶：拨齿推着木销时上一级（一个齿），其余时间停着——一拨一停。',
+      note: '一段一段地走：拨齿推着木销时斜着升一个齿（约占这一圈的六成），脱开后是平的、停着等下一根拨齿——与上面匀速的直线对照着看。',
     },
   ],
   // 抓取提示点在轮辋上（足轮局部坐标：轮面在 xz 平面，t = 0 时这一点在车头一侧）

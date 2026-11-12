@@ -2,7 +2,7 @@
 import { defineExhibit } from '../../exhibit/types'
 import { intro, sources } from './content'
 import { meta } from './meta'
-import { DEAD_ARM_RATIO, DIM, PERIOD, simulate, type MillControls, type MillState } from './model'
+import { DEAD_ARM_RATIO, DIM, PERIOD, Y, simulate, type MillControls, type MillState } from './model'
 import { parts } from './parts'
 
 const deg = (r: number) => `${Math.round((r * 180) / Math.PI)}°`
@@ -65,6 +65,8 @@ export default defineExhibit<MillState, MillControls>({
       text: '上下扇的斜齿方向相反、交叉成剪刀口。上扇一转，交叉点沿着沟槽不断向外移动：粮粒在交叉处被剪碎，同时被一路赶向边缘。',
       provenance: 'calc',
       active: (s) => s.showGrain && s.tracer === 'gap',
+      // 讲解：两扇之间看不见，揭去上扇从上往下看粮粒沿下扇的齿被赶向边缘
+      view: 'gap',
     },
     {
       id: 'discharge',
@@ -116,6 +118,18 @@ export default defineExhibit<MillState, MillControls>({
     },
   ],
   section: { normal: [0, 0, -1], offset: 0, label: '过磨心的竖直剖面' },
+  views: [
+    {
+      id: 'gap',
+      label: '揭开上扇',
+      target: [0, Y.gapMid, 0],
+      size: 760,
+      dir: [0.25, 1, 0.55],
+      // 在两扇之间水平剖开，揭去上扇（推杆、磨拐在上面，一并切掉）
+      section: { normal: [0, -1, 0], offset: -(Y.gapMid + 1), label: '在两扇之间水平剖开，揭去上扇' },
+      note: '在两扇之间剖开、揭去上扇：看粮粒沿下扇的齿被赶向边缘',
+    },
+  ],
   audit: {
     phases: 120,
     contacts: [
