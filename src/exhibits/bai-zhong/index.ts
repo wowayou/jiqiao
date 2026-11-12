@@ -142,6 +142,25 @@ export default defineExhibit<ClockState, ClockControls>({
   ],
   sources,
   view: { dir: [0.45, 0.75, 1] },
+  traces: [
+    {
+      id: 'pendulum',
+      label: '摆角',
+      unit: '°',
+      value: (s) => (s.pendulum * 180) / Math.PI,
+      provenance: 'calc',
+      note: '平滑的正弦：摆匀称地来回荡，不被擒纵打断。',
+    },
+    {
+      id: 'escape',
+      label: '擒纵轮转角',
+      unit: '°',
+      value: (s) => ((((s.psi * 180) / Math.PI) % 360) + 360) % 360,
+      wrap: 360,
+      provenance: 'calc',
+      note: '台阶：锁住时是平的，冲击和落时上一级——连续的摆被切成一步一步等长的走时。',
+    },
+  ],
   drive: [
     // 摆锤中心（摆杆局部坐标：原点在悬挂点）
     { part: 'bob', hint: '拨动摆锤', anchor: [0, -PENDULUM_LENGTH, (Z.pendulum[0] + Z.pendulum[1]) / 2] },

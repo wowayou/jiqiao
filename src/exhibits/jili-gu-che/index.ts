@@ -199,6 +199,26 @@ export default defineExhibit<CarState, CarControls>({
   ],
   sources,
   view: { dir: [0.8, 0.42, -1], target: [-150, 1250, 0] },
+  traces: [
+    {
+      id: 'xuan',
+      label: '旋风轮转角',
+      unit: '°',
+      value: (s) => frac(xiaRevs(s)) * 360,
+      wrap: 360,
+      provenance: 'calc',
+      note: '斜直线：旋风轮与下平轮同轴，跟着足轮匀速转（足轮一圈它转 1/3 圈）。',
+    },
+    {
+      id: 'zhong',
+      label: '中平轮前进',
+      unit: ' 齿',
+      value: (s) => ((s.ang.zhongTeeth % 100) + 100) % 100,
+      wrap: 100,
+      provenance: 'calc',
+      note: '台阶：拨齿推着木销时上一级（一个齿），其余时间停着——一拨一停。',
+    },
+  ],
   // 抓取提示点在轮辋上（足轮局部坐标：轮面在 xz 平面，t = 0 时这一点在车头一侧）
   drive: [
     { part: 'wheel-left', hint: '推动足轮（车往前走）', anchor: [0, 0, 890] },

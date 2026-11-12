@@ -17,6 +17,7 @@ export function allClaims(def: AnyExhibit): { where: string; claim: Claim }[] {
   def.readouts.forEach((r, i) =>
     out.push({ where: `readouts[${i}]`, claim: { text: r.label, provenance: r.provenance, cite: r.cite } }),
   )
+  def.traces?.forEach((tr) => out.push({ where: `traces.${tr.id}`, claim: { text: tr.note ?? tr.label, provenance: tr.provenance, cite: tr.cite } }))
   return out
 }
 
@@ -93,6 +94,14 @@ export function validateExhibit(def: AnyExhibit, dirName?: string): string[] {
     if (v.section === true && !def.section) e(`机位 ${v.id} 写了 section: true，但展品没有 section`)
   }
 
+  const traceIds = new Set<string>()
+  if ((def.traces?.length ?? 0) > 3) e('traces 最多 3 条（时间轴上方放不下更多）')
+  for (const tr of def.traces ?? []) {
+    if (traceIds.has(tr.id)) e(`迹线 id 重复：${tr.id}`)
+    traceIds.add(tr.id)
+    if (!tr.label) e(`迹线 ${tr.id} 没有 label`)
+    if (tr.wrap !== undefined && !(tr.wrap > 0)) e(`迹线 ${tr.id} 的 wrap 须为正`)
+  }
   const driveIds = new Set<string>()
   for (const d of def.drive ?? []) {
     if (!ids.has(d.part)) e(`drive 引用了不存在的零件 ${d.part}`)
@@ -146,6 +155,10 @@ export function validateExhibit(def: AnyExhibit, dirName?: string): string[] {
         }
       }
       for (const st of def.chain) st.active?.(def.simulate(t, def.defaults))
+      for (const tr of def.traces ?? []) {
+        const v = tr.value(def.simulate(t, def.defaults))
+        if (typeof v !== 'number' || !Number.isFinite(v)) e(`迹线「${tr.label}」在 t=${t} 时不是有限数`)
+      }
       for (const r of def.readouts) {
         const v = r.value(def.simulate(t, def.defaults))
         if (typeof v !== 'string' || v.length === 0) e(`读数「${r.label}」返回空值`)

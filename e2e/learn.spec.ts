@@ -253,3 +253,66 @@ test('亲手驱动：透榫的横料只在第一步动——楔打着时拖不�
   await dragOnCanvas(page, isMobile, b, 40, 0)
   await expect.poll(() => scrubT(page)).not.toBe(0.25)
 })
+
+// —— A3 迹线 ——
+
+test('迹线：时间轴上方每条一行、直接标名称与当前值；游标与细调条对齐；在图上点等同于拖时间轴', async ({ page }) => {
+  const errors = trackErrors(page)
+  await openExhibit(page, 'bai-zhong')
+  await pauseAt(page, 0)
+  const traces = page.getByTestId('traces')
+  await expect(traces).toHaveAttribute('data-ready', 'true')
+  await expect(page.locator('[data-trace-label="pendulum"]')).toContainText('摆角')
+  await expect(page.locator('[data-trace-label="escape"]')).toContainText('擒纵轮转角')
+  // 细调条拖到这一摆的一半：游标竖线的横坐标对上滑块的中点
+  const fine = page.getByTestId('fine')
+  const min = Number(await fine.getAttribute('min'))
+  await setRange(fine, min + 1)
+  const fb = (await fine.boundingBox())!
+  await expect
+    .poll(async () => {
+      const x = Number(await page.locator('.trace-cursor').getAttribute('x1'))
+      const tb = (await traces.boundingBox())!
+      return Math.abs(tb.x + x - (fb.x + fb.width / 2))
+    })
+    .toBeLessThan(10)
+  // 在曲线上点 3/4 处：时间跳到这一摆的 3/4（1.5 秒）
+  const svg = page.locator('.trace-svg')
+  const sb = (await svg.boundingBox())!
+  const x0 = fb.x + 8 - sb.x
+  const x1 = fb.x + fb.width - 8 - sb.x
+  await svg.click({ position: { x: x0 + (x1 - x0) * 0.75, y: 10 } })
+  await expect.poll(async () => Number(await fine.inputValue()) - min).toBeCloseTo(1.5, 1)
+  await expect(page.getByTestId('play')).toHaveAttribute('aria-pressed', 'false')
+  // 擒纵轮转角是台阶：曲线上有一段一段水平的线
+  const d = (await page.locator('[data-trace="escape"] path').getAttribute('d'))!
+  const ys = [...d.matchAll(/[ML][\d.]+,([\d.]+)/g)].map((m) => Number(m[1]))
+  const flat = ys.filter((y, i) => i > 0 && Math.abs(y - ys[i - 1]) < 0.05).length
+  expect(flat).toBeGreaterThan(ys.length * 0.5)
+  // 「怎么读」写明每条线
+  await page.getByText(/怎么读这/).click()
+  await expect(traces).toContainText('台阶')
+  expect(errors).toEqual([])
+})
+
+test('迹线：控件值变了重算（独轮车货物位置挪向轮轴，人手承担整条变低）', async ({ page }) => {
+  await openExhibit(page, 'muniu-dulun')
+  await pauseAt(page, 10)
+  const traces = page.getByTestId('traces')
+  await expect(traces).toHaveAttribute('data-ready', 'true')
+  const path = page.locator('[data-trace="hand"] path')
+  const d0 = await path.getAttribute('d')
+  const label0 = await page.locator('[data-trace-label="hand"]').innerText()
+  await setRange(page.locator('.stage-overlay input[type="range"]').nth(1), 100)
+  await expect.poll(() => path.getAttribute('d')).not.toBe(d0)
+  await expect(page.locator('[data-trace-label="hand"]')).not.toHaveText(label0)
+})
+
+test('迹线：每个展品都有，横轴在手机宽度下不溢出', async ({ page }) => {
+  for (const id of ['shi-mo', 'tou-sun']) {
+    await openExhibit(page, id)
+    await expect(page.getByTestId('traces')).toHaveAttribute('data-ready', 'true')
+    expect(await page.locator('.trace-label').count()).toBeGreaterThanOrEqual(1)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0)
+  }
+})

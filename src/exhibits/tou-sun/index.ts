@@ -62,6 +62,23 @@ export default defineExhibit<JointState, Record<string, never>>({
   ],
   sources: {},
   view: { dir: [-0.45, 0.35, 1], target: [40, 0, 0] },
+  traces: [
+    {
+      id: 'dof',
+      label: '剩余可动方向',
+      value: (s) => 9 - s.locked.length,
+      provenance: 'calc',
+      note: '台阶：榫头进到底的一刻从 9 降到 1（只剩往外拔），楔打到底再降到 0。',
+    },
+    {
+      id: 'depth',
+      label: '榫头入卯深度',
+      unit: ' mm',
+      value: (s) => s.tenonDepth,
+      provenance: 'calc',
+      note: '第一步里一路加深到穿透，第二步（打楔）不再变。',
+    },
+  ],
   // 横料只在第一步（0–50%）动，楔只在第二步动：楔没拔出来时横料拔不动
   drive: [
     { part: 'rail', hint: '推拉横料（榫头进出卯眼）', anchor: [250, 0, 0] },

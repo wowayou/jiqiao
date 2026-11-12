@@ -1,9 +1,19 @@
 // 展品页的各个面板。全部只读 store；运动与读数都来自 simulate 的状态快照。
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { splitRef } from '../exhibit/scene'
 import { DOF_LABEL, GROUP_LABEL, PROVENANCE_LABEL, type AnyExhibit, type Dof, type PartGroup, type TimeMoment } from '../exhibit/types'
 import { timelineSpan, useStage, useStageActions } from '../stage/store'
 import { formatTime, mainStep, minorOf, minorPos } from '../stage/timeline'
+import {
+  cachedTraces,
+  formatTraceValue,
+  placeOnSeries,
+  sampleTracesAsync,
+  seriesAt,
+  traceDomain,
+  traceKey,
+  type TraceSamples,
+} from '../stage/traces'
 import { ClaimItem, ClaimList, ProvTag } from './Provenance'
 
 /** 窄屏上舞台在页面顶部、列表在下面：从列表里点零件/链环后把舞台滚回视野，免得选中了却看不到。 */
@@ -481,6 +491,149 @@ export function TourBar({ def }: { def: AnyExhibit }) {
         </button>
       </div>
     </section>
+  )
+}
+
+// —— 迹线：时间轴上方，每条一行、各自纵轴，横轴与细调条（或主进度条）对齐 ——
+const TRACE_ROW = 38
+
+export function Traces({ def }: { def: AnyExhibit }) {
+  const traces = def.traces ?? []
+  const t = useStage((s) => s.t)
+  const controls = useStage((s) => s.controls)
+  const { setT, setPlaying } = useStageActions()
+  const minor = minorOf(def)
+  const domain = traceDomain(def, t)
+  const key = traceKey(def, domain, controls)
+  const [samples, setSamples] = useState<TraceSamples | null>(() => cachedTraces(key) ?? null)
+  // 换了一段（下一个小循环）或控件值变了：分片重取，取完之前先画上一段（标为「取样中」）
+  useEffect(() => {
+    if (traces.length === 0) return
+    let alive = true
+    const cancel = sampleTracesAsync(def, controls, domain, (r) => alive && setSamples(r))
+    return () => {
+      alive = false
+      cancel()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
+
+  // 横轴对齐时间轴的滑块：量出滑块在本块里的左右位置（滑块圆钮半宽约 8 px）
+  const boxRef = useRef<HTMLDivElement>(null)
+  const [geo, setGeo] = useState<{ w: number; x0: number; x1: number } | null>(null)
+  useLayoutEffect(() => {
+    const box = boxRef.current
+    if (!box) return
+    const refSel = minor ? '[data-testid="fine"]' : '[data-testid="scrub"]'
+    const measure = () => {
+      const b = box.getBoundingClientRect()
+      const ref = document.querySelector<HTMLElement>(refSel)
+      const r = ref?.getBoundingClientRect()
+      const next = r && r.width > 40 ? { w: b.width, x0: r.left - b.left + 8, x1: r.right - b.left - 8 } : { w: b.width, x0: 12, x1: b.width - 12 }
+      setGeo((g) => (g && Math.abs(g.w - next.w) < 0.5 && Math.abs(g.x0 - next.x0) < 0.5 && Math.abs(g.x1 - next.x1) < 0.5 ? g : next))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(box)
+    const ref = document.querySelector(refSel)
+    if (ref) ro.observe(ref)
+    window.addEventListener('resize', measure)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [minor])
+
+  const state = useMemo(() => def.simulate(t, controls), [def, t, controls])
+  const ready = samples && samples.domain.start === domain.start && samples.domain.length === domain.length
+  const paths = useMemo(() => {
+    if (!samples || !geo) return []
+    const { x0, x1 } = geo
+    return samples.series.map((ser, j) => {
+      const [lo, hi] = samples.ranges[j]
+      const top = j * TRACE_ROW
+      const y = (v: number) => top + TRACE_ROW - 5 - ((v - lo) / (hi - lo)) * (TRACE_ROW - 12)
+      // 照样本画折线，不平滑：台阶形就是台阶形
+      return ser.map((v, i) => `${i ? 'L' : 'M'}${(x0 + ((x1 - x0) * i) / (ser.length - 1)).toFixed(1)},${y(v).toFixed(1)}`).join('')
+    })
+  }, [samples, geo])
+
+  if (traces.length === 0) return null
+  const H = traces.length * TRACE_ROW
+  const u = (t - domain.start) / domain.length
+  const inDomain = u >= -1e-9 && u <= 1 + 1e-9
+  const cx = geo ? geo.x0 + (geo.x1 - geo.x0) * Math.min(1, Math.max(0, u)) : 0
+  // 宽屏：名称与当前值放在滑块左边的空处；窄屏滑块占满整行，放在曲线左上角
+  const gutter = geo ? geo.x0 >= 150 : false
+
+  const seek = (clientX: number) => {
+    if (!geo || !boxRef.current) return
+    const b = boxRef.current.getBoundingClientRect()
+    const f = Math.min(1, Math.max(0, (clientX - b.left - geo.x0) / (geo.x1 - geo.x0)))
+    setPlaying(false)
+    setT(domain.start + f * domain.length * (def.timeline.kind === 'cyclic' && !minor ? 0.99999 : 1))
+  }
+
+  return (
+    <div className="traces" data-testid="traces" data-ready={Boolean(ready)} ref={boxRef}>
+      <div className="trace-plot" style={{ height: H }}>
+        {geo && (
+          <svg
+            width={geo.w}
+            height={H}
+            className="trace-svg"
+            role="img"
+            aria-label={`迹线：${traces.map((tr) => tr.label).join('、')}。在图上点或拖动等同于拖时间轴`}
+            onPointerDown={(e) => {
+              ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
+              seek(e.clientX)
+            }}
+            onPointerMove={(e) => {
+              if ((e.currentTarget as Element).hasPointerCapture(e.pointerId)) seek(e.clientX)
+            }}
+          >
+            {traces.map((tr, j) => (
+              <g key={tr.id} data-trace={tr.id}>
+                <rect className="trace-band" x={geo.x0} y={j * TRACE_ROW + 3} width={Math.max(0, geo.x1 - geo.x0)} height={TRACE_ROW - 6} />
+                {paths[j] && <path className={`trace-line${ready ? '' : ' is-stale'}`} d={paths[j]} />}
+              </g>
+            ))}
+            {inDomain && <line className="trace-cursor" x1={cx} x2={cx} y1={0} y2={H} />}
+            {inDomain &&
+              ready &&
+              traces.map((tr, j) => {
+                const ser = samples!.series[j]
+                const [lo, hi] = samples!.ranges[j]
+                const v = placeOnSeries(tr.value(state), seriesAt(domain, ser, t), tr.wrap)
+                const y = j * TRACE_ROW + TRACE_ROW - 5 - ((v - lo) / (hi - lo)) * (TRACE_ROW - 12)
+                return <circle key={tr.id} className="trace-dot" cx={cx} cy={Math.min(j * TRACE_ROW + TRACE_ROW - 2, Math.max(j * TRACE_ROW + 2, y))} r={3.5} />
+              })}
+          </svg>
+        )}
+        {traces.map((tr, j) => (
+          <span
+            key={tr.id}
+            className={`trace-label${gutter ? ' in-gutter' : ''}`}
+            style={gutter && geo ? { top: j * TRACE_ROW, right: geo.w - geo.x0 + 12 } : { top: j * TRACE_ROW + 2, left: (geo?.x0 ?? 12) + 2 }}
+            data-trace-label={tr.id}
+          >
+            {tr.label} <b className="trace-val">{formatTraceValue(tr.value(state), tr.unit)}</b>
+          </span>
+        ))}
+      </div>
+      <details className="trace-notes">
+        <summary>怎么读这{traces.length > 1 ? '几' : ''}条线</summary>
+        <ul>
+          {traces.map((tr) => (
+            <li key={tr.id}>
+              <ProvTag p={tr.provenance} />
+              <b>{tr.label}</b>：{tr.note ?? '随时间的变化，数值出自模型。'}
+            </li>
+          ))}
+          <li>横轴{minor ? `是当前这一${minor.unit}（与下方细调条对齐）` : def.timeline.kind === 'assembly' ? '是装配进度（与下方进度条对齐）' : '是整个周期（与下方进度条对齐）'}；朱红竖线是此刻。在图上点或拖动，等同于拖时间轴。</li>
+        </ul>
+      </details>
+    </div>
   )
 }
 

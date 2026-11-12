@@ -96,6 +96,25 @@ export default defineExhibit<MillState, MillControls>({
   view: { dir: [0.55, 0.62, 1] },
   // 亲手驱动：抓住推杆末端的横把推拉，上扇跟着转（横把中心，推杆局部坐标）
   drive: [{ part: 'push-rod', hint: '推拉横把', anchor: [DIM.rodLen + 4, 0, 0] }],
+  traces: [
+    {
+      id: 'hand',
+      label: '横把位置',
+      unit: ' mm',
+      value: (s) => s.crank.x,
+      provenance: 'calc',
+      note: '起伏的曲线：人手来回推拉（离磨心近 = 推到头，远 = 拉到头）。',
+    },
+    {
+      id: 'theta',
+      label: '上扇转角',
+      unit: '°',
+      value: (s) => (s.theta * 180) / Math.PI,
+      wrap: 360,
+      provenance: 'calc',
+      note: '斜直线：上扇一直朝一个方向匀速转——往复的推拉变成了连续的旋转。',
+    },
+  ],
   section: { normal: [0, 0, -1], offset: 0, label: '过磨心的竖直剖面' },
   audit: {
     phases: 120,

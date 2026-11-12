@@ -252,6 +252,23 @@ export interface ViewPreset {
   note?: string
 }
 
+/** 迹线：机器最关键的一个量随时间的曲线，画在时间轴上方。数值只能出自 simulate 的状态。 */
+export interface TraceDef<S> {
+  /** 展品内唯一 */
+  id: string
+  /** 名称，直接标在线旁（不用图例），如「摆角」 */
+  label: string
+  /** 单位，如 '°'、'mm'、'kg' */
+  unit?: string
+  value: (s: S) => number
+  provenance: Provenance
+  cite?: string
+  /** 一句话：怎么读这条线（如「台阶：锁住时平、冲击时上一级」） */
+  note?: string
+  /** 值的周期（如转角 360）：取样时展开成连续曲线，从 359° 走到 0° 不画成竖线；当前值仍按原值显示 */
+  wrap?: number
+}
+
 /** 亲手驱动：观众可以抓住拖动的零件。拖动只改时间 t——零件沿 simulate 给出的轨迹跟着手走。 */
 export interface DriveDef {
   /** 零件 id（有副本时任一副本都可抓） */
@@ -298,6 +315,8 @@ export interface ExhibitDef<S = any, C = any> {
   views?: ViewPreset[]
   /** 亲手驱动（可选）：可拖动的零件与提示语 */
   drive?: DriveDef[]
+  /** 迹线（可选，1–3 条）：时间轴上方的曲线 */
+  traces?: TraceDef<S>[]
   /** 审计配置 */
   audit?: AuditDef
 }

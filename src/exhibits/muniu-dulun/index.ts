@@ -85,6 +85,24 @@ export default defineExhibit<DulunState, DulunControls>({
   ],
   sources,
   view: { dir: [0.45, 0.4, 1], target: [0, 330, 0] },
+  traces: [
+    {
+      id: 'hand',
+      label: '人手承担',
+      unit: ' kg',
+      value: (s) => s.handKg,
+      provenance: 'calc',
+      note: '加力时渐渐上升，抬平、推行时保持，放下后卸掉；把「货物位置」往轮轴挪，整条线变低。',
+    },
+    {
+      id: 'legs',
+      label: '支脚承担',
+      unit: ' kg',
+      value: (s) => s.legKg,
+      provenance: 'calc',
+      note: '与人手此消彼长：人手接过去多少，支脚就卸掉多少；推行时为零。',
+    },
+  ],
   // 车把只在抬平、放把时动，车轮只在推行时转：其余时刻拖不动（此刻它们本来就不动）
   drive: [
     { part: 'handle', hint: '抬起 / 放下车把', anchor: [GRIP[0], GRIP[1], 0] },

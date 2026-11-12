@@ -108,6 +108,25 @@ export default defineExhibit<DuiState, DuiControls>({
   sources,
   view: { dir: [0.55, 0.7, 1] },
   drive: [{ part: 'wheel', hint: '拨动水轮' }],
+  traces: [
+    {
+      id: 'wheel',
+      label: '水轮转角',
+      unit: '°',
+      value: (s) => (s.theta * 180) / Math.PI,
+      wrap: 360,
+      provenance: 'calc',
+      note: '斜直线：水轮一直匀速转。',
+    },
+    {
+      id: 'lift-1',
+      label: '碓一碓头抬起',
+      unit: ' mm',
+      value: (s) => s.levers[0].lift,
+      provenance: 'calc',
+      note: '锯齿：拨板压尾时慢慢抬起，脱开后很快落下，停在臼里等下一块拨板——匀速的转动变成了间歇的敲击。',
+    },
+  ],
   views: [
     {
       id: 'peg',

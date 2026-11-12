@@ -596,6 +596,83 @@ input[type='range'] {
   opacity: 0.8;
 }
 
+/* 迹线：时间轴上方 */
+.traces {
+  padding: var(--s1) 0 0;
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+}
+.trace-plot {
+  position: relative;
+}
+.trace-svg {
+  display: block;
+  cursor: pointer;
+  touch-action: none;
+}
+.trace-band {
+  fill: var(--paper-2);
+}
+.trace-line {
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+.trace-line.is-stale {
+  opacity: 0.35;
+}
+.trace-cursor {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+.trace-dot {
+  fill: var(--accent);
+  stroke: var(--paper);
+  stroke-width: 1.5;
+}
+.trace-label {
+  position: absolute;
+  font-size: var(--fs-0);
+  line-height: 16px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.trace-label.in-gutter {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.trace-label:not(.in-gutter) {
+  padding: 0 4px;
+  border-radius: var(--r1);
+  background: color-mix(in srgb, var(--paper) 80%, transparent);
+}
+.trace-val {
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.trace-notes {
+  padding: 0 var(--s4) var(--s1);
+  font-size: var(--fs-0);
+  color: var(--ink-3);
+}
+.trace-notes summary {
+  cursor: pointer;
+  width: max-content;
+}
+.trace-notes ul {
+  margin: var(--s1) 0;
+  padding-left: 0;
+  list-style: none;
+}
+.trace-notes li {
+  margin: 2px 0;
+}
+
 /* 时间轴 */
 .timeline {
   display: flex;

@@ -4,7 +4,7 @@ import { getMeta, loadExhibit, relatedMetas } from '../exhibit/registry'
 import type { AnyExhibit } from '../exhibit/types'
 import { StageContext, createStageStore, useStage, useStageActions, type StageStore } from '../stage/store'
 import { SiteHeader, useThemeCtx } from './App'
-import { ChainPanel, IntroPanel, PartsPanel, HoverTip, Readouts, Timeline, Toolbar, TourBar, ViewBar } from './panels'
+import { ChainPanel, IntroPanel, PartsPanel, HoverTip, Readouts, Timeline, Toolbar, TourBar, Traces, ViewBar } from './panels'
 
 export function ExhibitPage({ id }: { id: string }) {
   const meta = getMeta(id)
@@ -177,6 +177,7 @@ function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
           <span className="tip-fine">拖动旋转 · 滚轮朝指针处缩放 · 双击零件凑近看 · 光标变手形的零件可直接拖 · 点「?」看全部操作</span>
           <span className="tip-touch">单指旋转 · 双指缩放平移 · 双击凑近 · 圈出的零件可按住拖 · 「?」更多</span>
         </p>
+        <Traces def={def} />
         <Timeline def={def} />
         <Readouts def={def} />
       </div>
