@@ -9,6 +9,21 @@
 | [wheresryan22/anatomy-figures](https://github.com/wheresryan22/anatomy-figures) | MIT | 图解站点的表达方法：真值模型先行，画面只有一个强调色给当前该看的东西 | 单一强调色（朱砂）规则、读数与文字都读同一模型 |
 | [hoveychen/zhinanche](https://github.com/hoveychen/zhinanche) | 代码 Apache-2.0，模型 CC-BY-SA-4.0 | 指南车的模型约定（第二期参考） | 本轮未使用 |
 
+## 实物对照的三维模型
+
+「说明与出处」页的「实物对照」嵌入下列他人在 [Sketchfab](https://sketchfab.com) 上以 CC0 或 CC BY 4.0 发布的三维模型。本站**不下载、不自托管**：读者点「加载三维实物」后，浏览器才直接从 sketchfab.com 加载；署名与链接在页面上一直显示。本站自己的模型不受它们影响。
+
+| 展品 | 模型 | 作者 | 许可 | 链接 |
+|---|---|---|---|---|
+| 石磨 | Stone mill（石磨） | 小明一米七 | CC BY 4.0 | [模型](https://sketchfab.com/3d-models/ed0bd32c425143e6a3e623a499fb8ea4) · [作者](https://sketchfab.com/2251387929a) |
+| 水碓 | Trip hammer | Skebobruks museum | CC BY 4.0 | [模型](https://sketchfab.com/3d-models/c9b552475cb94d03ac60d3e486dc1520) · [作者](https://sketchfab.com/skebobruks_museum) |
+| 记里鼓车 | Pedometer | Virtual Museums of Małopolska | CC0 | [模型](https://sketchfab.com/3d-models/06da2877dcd54192bb9bd692b4737d8c) · [作者](https://sketchfab.com/WirtualneMuzeaMalopolski) |
+| 木牛流马 · 独轮车说 | Day 236: Antique child wheelbarrow - 1scanaday | Emm | CC BY 4.0 | [模型](https://sketchfab.com/3d-models/bc84c709f8744a54b282d6df115106f0) · [作者](https://sketchfab.com/edemaistre) |
+| 锚式擒纵摆钟 | Galileo's escapement pendulum clock | erastoten | CC BY 4.0 | [模型](https://sketchfab.com/3d-models/7cbfd12d44ac4436a6d81796ae76fe90) · [作者](https://sketchfab.com/erastoten) |
+| 透榫（带破头楔） | Otoshi-ari-hozo-shikuchi | thejoinery | CC BY 4.0 | [模型](https://sketchfab.com/3d-models/269f0b5a914e437ba10c0aed445711df) · [作者](https://sketchfab.com/thejoinery) |
+
+许可全文：[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)、[CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)。这些模型是否合适、与本站模型有何异同，由各展品的 `realObjects[].differs` 如实写明；它们不是史料，也不是本站所依据的那件器物。
+
 使用的开源依赖（按 package.json）：three、@react-three/fiber、@react-three/drei、manifold-3d（Apache-2.0）、react、zustand、wouter、vite、vitest、playwright。
 
 公开方法：

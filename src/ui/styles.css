@@ -1210,6 +1210,59 @@ input[type='range'] {
   font-family: inherit;
 }
 
+/* 实物对照 */
+.real-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s3);
+}
+.real-card {
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r2);
+  background: var(--paper-2);
+  font-size: var(--fs-1);
+  min-width: 0;
+}
+.real-card p {
+  margin: 0 0 var(--s2);
+}
+.real-what {
+  color: var(--ink);
+}
+.real-differs {
+  color: var(--ink-2);
+}
+.real-credit {
+  font-size: var(--fs-0);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.real-credit a {
+  text-underline-offset: 2px;
+}
+.real-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+}
+.real-note {
+  font-size: var(--fs-0);
+  color: var(--ink-2);
+}
+.real-frame {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  margin-top: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r2);
+  background: var(--paper);
+}
+
 /* —— 窄屏（手机） —— */
 @media (max-width: 960px) {
   :root {

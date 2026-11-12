@@ -62,6 +62,18 @@ export default defineExhibit<JointState, Record<string, never>>({
   ],
   sources: {},
   view: { dir: [-0.45, 0.35, 1], target: [40, 0, 0] },
+  // 实物对照：他人在 Sketchfab 上发布的真实器物三维模型（点了才加载，见 docs/AUTHORING.md「实物对照」）
+  realObjects: [
+    {
+      uid: "269f0b5a914e437ba10c0aed445711df",
+      title: "Otoshi-ari-hozo-shikuchi",
+      author: "thejoinery",
+      authorSlug: "thejoinery",
+      license: "CC BY 4.0",
+      what: "日式木作的一种榫接（落とし蟻ほぞ仕口）的几何模型：立柱、横料和一枚小木件。",
+      differs: "与透榫带楔的思路相近——榫头进了卯眼，再塞进一枚木件把它锁住；但这是日本做法，榫头的形状和锁法都不同，不是本展品这一种。",
+    },
+  ],
   traces: [
     {
       id: 'dof',

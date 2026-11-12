@@ -142,6 +142,18 @@ export default defineExhibit<ClockState, ClockControls>({
   ],
   sources,
   view: { dir: [0.45, 0.75, 1] },
+  // 实物对照：他人在 Sketchfab 上发布的真实器物三维模型（点了才加载，见 docs/AUTHORING.md「实物对照」）
+  realObjects: [
+    {
+      uid: "7cbfd12d44ac4436a6d81796ae76fe90",
+      title: "Galileo's escapement pendulum clock",
+      author: "erastoten",
+      authorSlug: "erastoten",
+      license: "CC BY 4.0",
+      what: "伽利略晚年（约 1641 年）构想的摆钟擒纵，这是今人按资料设计的复制品模型。",
+      differs: "同样用摆定节拍、用擒纵把轮系一格一格放行，但擒纵的构造与本展品的锚式不同。",
+    },
+  ],
   traces: [
     {
       id: 'pendulum',

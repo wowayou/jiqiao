@@ -2,7 +2,7 @@
 import { assemblyOffsets } from '../kinematics/assembly'
 import { evaluateScene, explodeItems, splitRef } from './scene'
 import { stepWindow } from './tour'
-import type { AnyExhibit, Claim } from './types'
+import type { AnyExhibit, Claim, RealObjectRef } from './types'
 
 /** 收集展品里所有带出处类别的陈述（用于出处审计与界面）。 */
 export function allClaims(def: AnyExhibit): { where: string; claim: Claim }[] {
@@ -113,6 +113,8 @@ export function validateExhibit(def: AnyExhibit, dirName?: string): string[] {
     if (d.seek !== undefined && !(d.seek > 0)) e(`drive ${d.part} 的 seek 须为正`)
   }
 
+  errs.push(...validateRealObjects(def.realObjects))
+
   for (const c of def.controls) if (!(c.key in (def.defaults as object))) e(`控件 ${c.key} 没有初值（defaults）`)
   const tl = def.timeline
   if (tl.speeds.length === 0) e('timeline.speeds 为空')
@@ -182,5 +184,22 @@ export function validateExhibit(def: AnyExhibit, dirName?: string): string[] {
       }
     }
   }
+  return errs
+}
+
+const LICENSES = ['CC0', 'CC BY 4.0']
+
+/** 实物对照的结构校验：uid 格式、文字字段非空、许可取值、同一展品 uid 不重复 */
+export function validateRealObjects(list: RealObjectRef[] | undefined): string[] {
+  const errs: string[] = []
+  const seen = new Set<string>()
+  ;(list ?? []).forEach((o, i) => {
+    const w = `realObjects[${i}]`
+    if (!/^[0-9a-f]{32}$/.test(o.uid ?? '')) errs.push(`${w} 的 uid 须为 32 位小写十六进制：${o.uid}`)
+    else if (seen.has(o.uid)) errs.push(`${w} 的 uid 重复：${o.uid}`)
+    seen.add(o.uid)
+    for (const k of ['title', 'author', 'authorSlug', 'what', 'differs'] as const) if (typeof o[k] !== 'string' || o[k].trim() === '') errs.push(`${w} 的 ${k} 不能为空`)
+    if (!LICENSES.includes(o.license)) errs.push(`${w} 的 license 只能是 ${LICENSES.join(' 或 ')}：${String(o.license)}`)
+  })
   return errs
 }

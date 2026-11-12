@@ -326,6 +326,86 @@ test('暗色主题：文字、强调色对背景的对比度不低于 4.5:1，�
   expect(ratio(tokens['line-strong'], tokens.paper)).toBeGreaterThanOrEqual(3)
 })
 
+// —— 第六组：实物对照（Sketchfab 嵌入）——
+// 全程用 page.route 拦掉对 sketchfab.com 的请求：测试不依赖外网，也不向第三方发任何请求。
+
+async function blockSketchfab(page: Page) {
+  const hits: string[] = []
+  await page.route('**/*sketchfab.com/**', (r) => {
+    hits.push(r.request().url())
+    return r.abort()
+  })
+  return hits
+}
+
+for (const id of ids) {
+  test(`实物对照 · ${id}：默认没有 iframe、不发请求；署名行与三个外链都在`, async ({ page }) => {
+    const hits = await blockSketchfab(page)
+    await openExhibit(page, id)
+    await page.getByRole('tab', { name: '说明与出处' }).click()
+    const cards = page.locator('[data-testid="real-objects"] .real-card')
+    expect(await cards.count()).toBeGreaterThanOrEqual(1)
+    await expect(page.locator('iframe')).toHaveCount(0)
+    for (let i = 0; i < (await cards.count()); i++) {
+      const card = cards.nth(i)
+      const uid = (await card.getAttribute('data-real'))!
+      await expect(card.locator('.real-what')).not.toBeEmpty()
+      await expect(card.locator('.real-differs')).toContainText('与本展品：')
+      const credit = card.getByTestId('real-credit')
+      await expect(credit).toContainText('来自 Sketchfab')
+      await expect(credit).toContainText('作者')
+      const links = credit.locator('a')
+      await expect(links).toHaveCount(3)
+      const hrefs = await links.evaluateAll((as) => as.map((a) => ({ href: (a as HTMLAnchorElement).href, target: a.getAttribute('target'), rel: a.getAttribute('rel') })))
+      expect(hrefs[0].href).toBe(`https://sketchfab.com/3d-models/${uid}`)
+      expect(hrefs[1].href).toMatch(/^https:\/\/sketchfab\.com\/[^/]+$/)
+      expect(hrefs[2].href).toMatch(/^https:\/\/creativecommons\.org\/(licenses\/by\/4\.0|publicdomain\/zero\/1\.0)\/$/)
+      for (const h of hrefs) {
+        expect(h.target).toBe('_blank')
+        expect(h.rel).toBe('noopener noreferrer')
+      }
+      await expect(card.getByTestId('real-toggle')).toHaveText('加载三维实物（来自 Sketchfab）')
+      await expect(card).toContainText('点击后会从 sketchfab.com 加载内容')
+    }
+    expect(await noOverflow(page)).toBeLessThanOrEqual(0)
+    expect(hits).toEqual([])
+  })
+}
+
+test('实物对照：点了才加载 iframe（地址、referrer、权限），再点「收起」卸掉；窄屏不溢出', async ({ page }) => {
+  const hits = await blockSketchfab(page)
+  await openExhibit(page, 'shi-mo')
+  await page.getByRole('tab', { name: '说明与出处' }).click()
+  const card = page.locator('.real-card').first()
+  const uid = (await card.getAttribute('data-real'))!
+  const toggle = card.getByTestId('real-toggle')
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  expect(hits).toEqual([])
+  await toggle.click()
+  const frame = card.locator('iframe')
+  await expect(frame).toHaveCount(1)
+  const src = (await frame.getAttribute('src'))!
+  expect(src.startsWith(`https://sketchfab.com/models/${uid}/embed`)).toBe(true)
+  expect(src).toContain('dnt=1')
+  await expect(frame).toHaveAttribute('title', 'Stone mill（石磨）')
+  await expect(frame).toHaveAttribute('referrerpolicy', 'no-referrer')
+  await expect(frame).toHaveAttribute('loading', 'lazy')
+  await expect(frame).toHaveAttribute('allow', 'autoplay; fullscreen; xr-spatial-tracking')
+  await expect(toggle).toHaveText('收起')
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  // 署名行加载后仍在
+  await expect(card.getByTestId('real-credit')).toBeVisible()
+  // 4:3 的宽高比、不超出卡片
+  const fb = (await frame.boundingBox())!
+  expect(Math.abs(fb.width / fb.height - 4 / 3)).toBeLessThan(0.02)
+  expect(await noOverflow(page)).toBeLessThanOrEqual(0)
+  await expect.poll(() => hits.length).toBeGreaterThan(0) // 请求发出过（被拦截），且只在点击之后
+  expect(hits.every((u) => u.includes(`/models/${uid}/embed`))).toBe(true)
+  await toggle.click()
+  await expect(card.locator('iframe')).toHaveCount(0)
+  await expect(toggle).toHaveText('加载三维实物（来自 Sketchfab）')
+})
+
 // —— 第五组：讲解自动取景（没有预设机位的环）——
 // data-fit-max：讲解取景框住的那一环的角点（整个时间窗里所有零件的包围盒角点）投影到画布后，离中心最远的归一化坐标。
 // ≤ 1：这一环没有零件出画；≥ 0.6：框得紧（改前，石磨第 1–3 环只有 0.37 左右、摆钟「摆定节拍」0.58）。

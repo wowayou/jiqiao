@@ -199,6 +199,18 @@ export default defineExhibit<CarState, CarControls>({
   ],
   sources,
   view: { dir: [0.8, 0.42, -1], target: [-150, 1250, 0] },
+  // 实物对照：他人在 Sketchfab 上发布的真实器物三维模型（点了才加载，见 docs/AUTHORING.md「实物对照」）
+  realObjects: [
+    {
+      uid: "06da2877dcd54192bb9bd692b4737d8c",
+      title: "Pedometer",
+      author: "Virtual Museums of Małopolska",
+      authorSlug: "WirtualneMuzeaMalopolski",
+      license: "CC0",
+      what: "18 世纪的计步器，波兰小波兰地区虚拟博物馆的藏品扫描。黄铜盒里是一组齿轮，四个表盘分别数个、十、百、千步。",
+      differs: "不是记里鼓车，也不是中国器物——没有找到可用的记里鼓车实物模型。放在这里是因为思路相同：用一串减速齿轮把重复的动作数出来。",
+    },
+  ],
   traces: [
     {
       id: 'xuan',

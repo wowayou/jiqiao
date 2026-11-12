@@ -119,6 +119,7 @@ solid: (k) => k.box([80, 520, 80]).subtract(mortiseCutter(k, {...}).translate([4
 | `drive?` | 亲手驱动：`{ part, hint, anchor?, scale?, seek? }[]`，观众可以抓住拖动的零件；见下方「亲手驱动」 |
 | `traces?` | 迹线：`{ id, label, unit?, value: (s) => number, provenance, cite?, note?, wrap? }[]`，1–3 条；见下方「迹线」 |
 | `section?` | 默认剖切平面 `{ normal, offset, label? }`：保留 `normal·x ≥ offset` 一侧，相机应在被切掉的一侧。**榫卯必填** |
+| `realObjects?` | 实物对照：`RealObjectRef[]`，嵌入 Sketchfab 上他人发布的真实器物三维模型，显示在「说明与出处」页的「实物对照」里；见下方「实物对照」 |
 | `audit?` | `{ contacts?: [a, b][], phases?, ignore?: string[] }`。机械必须列出接触零件对 |
 
 ### 长周期展品的时间轴（`timeline.minor` / `timeline.moments`）
@@ -174,6 +175,26 @@ solid: (k) => k.box([80, 520, 80]).subtract(mortiseCutter(k, {...}).translate([4
 | `wrap?` | 值的周期（转角写 360）：取样时展开成连续曲线，从 359° 到 0° 不画成竖线；当前值仍按原值显示 |
 
 画的那一段：有小循环画当前小循环（横轴与细调条对齐），否则整个周期 / 装配进度（与主进度条对齐）。每条约 240 个点，各自按取样的最小、最大值定纵轴；台阶照样本画折线，不平滑。取样按「这一段的起点 + 控件值」缓存（`src/stage/traces.ts`），分片计算、片间让出主线程，`simulate` 慢的展品也不卡画面。挑量的标准：曲线的形状本身就在讲原理；单调递增、跨很多圈的量（擒纵轮累计转角）取模并写 `wrap`。
+
+### 实物对照（`realObjects`）
+
+让观众把本站的示意模型和真东西对上。**本站自己的模型一律不动**，也不下载、不自托管别人的模型：页面只放一个按钮，读者点了才在页面里嵌入 Sketchfab 的在线查看器（`https://sketchfab.com/models/<uid>/embed?dnt=1&…`）；点之前不向任何第三方发请求。
+
+| 字段 | 含义 |
+|---|---|
+| `uid` | Sketchfab 模型 uid，32 位十六进制（模型页地址末尾那串）。同一展品内不得重复 |
+| `title` | 原标题，照录，不翻译 |
+| `author`、`authorSlug` | 作者显示名；作者在 Sketchfab 的用户名（拼作者主页链接） |
+| `license` | 只能是 `'CC0'` 或 `'CC BY 4.0'` |
+| `what` | 这是什么（中文一两句）：哪里的、什么年代或什么性质（实物扫描 / 复制品 / 建模） |
+| `differs` | 与本展品的模型有什么相同、有什么不同（中文一两句）。**必须写**：不许让人误以为这就是史料里的那件东西 |
+
+署名行（`《标题》，作者 …，许可，来自 Sketchfab`，带三个外链）无论 iframe 是否加载都显示——CC BY 要求署名。选模型的规矩：
+
+1. 只用 CC0 或 CC BY（CC BY-NC、CC BY-SA 等一律不用）；新增的模型同时登记进 `docs/CREDITS.md`。
+2. `differs` 如实写出不同：不是同一类器物、不是中国器物、尺度或用途不同，都要写明；找不到合适的实物时，写「放在这里是因为思路相同」，不要硬说是同一件。
+3. 不要选来源语境不合适的模型（与展品毫无关系的、来路不明的、内容不适合的）。
+4. `validateExhibit` 校验 uid 格式、文字字段非空、license 取值、uid 不重复。
 
 ### PartDef
 

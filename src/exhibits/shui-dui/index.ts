@@ -108,6 +108,18 @@ export default defineExhibit<DuiState, DuiControls>({
   sources,
   view: { dir: [0.55, 0.7, 1] },
   drive: [{ part: 'wheel', hint: '拨动水轮' }],
+  // 实物对照：他人在 Sketchfab 上发布的真实器物三维模型（点了才加载，见 docs/AUTHORING.md「实物对照」）
+  realObjects: [
+    {
+      uid: "c9b552475cb94d03ac60d3e486dc1520",
+      title: "Trip hammer",
+      author: "Skebobruks museum",
+      authorSlug: "skebobruks_museum",
+      license: "CC BY 4.0",
+      what: "瑞典 Strömbergs 铁工场的水力碓锤，博物馆的实物扫描。",
+      differs: "原理与水碓相同：水轮带动的轴拨动锤柄，抬起、脱开、落下。这一件是欧洲锻铁用的，锤头远比舂米的碓头重；本展品依据的是王祯《农书》里的中国水碓。",
+    },
+  ],
   traces: [
     {
       id: 'wheel',

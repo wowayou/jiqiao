@@ -98,6 +98,18 @@ export default defineExhibit<MillState, MillControls>({
   view: { dir: [0.55, 0.62, 1] },
   // 亲手驱动：抓住推杆末端的横把推拉，上扇跟着转（横把中心，推杆局部坐标）
   drive: [{ part: 'push-rod', hint: '推拉横把', anchor: [DIM.rodLen + 4, 0, 0] }],
+  // 实物对照：他人在 Sketchfab 上发布的真实器物三维模型（点了才加载，见 docs/AUTHORING.md「实物对照」）
+  realObjects: [
+    {
+      uid: "ed0bd32c425143e6a3e623a499fb8ea4",
+      title: "Stone mill（石磨）",
+      author: "小明一米七",
+      authorSlug: "2251387929a",
+      license: "CC BY 4.0",
+      what: "一所学校里的老石磨，作者用照片重建的实物模型。",
+      differs: "与本展品一样是上下两扇、上扇带磨眼；实物没有保留推杆和磨拐，磨盘也换成了砖砌的底座。",
+    },
+  ],
   traces: [
     {
       id: 'hand',

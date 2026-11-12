@@ -298,6 +298,23 @@ export interface AuditDef {
   ignore?: string[]
 }
 
+/** 实物对照：Sketchfab 上他人发布（CC0 / CC BY 4.0）的真实器物三维模型。本站不下载、不自托管，点了才嵌入在线查看器。 */
+export interface RealObjectRef {
+  /** Sketchfab 模型 uid（32 位十六进制） */
+  uid: string
+  /** 原标题（照录，不翻译） */
+  title: string
+  /** 作者显示名 */
+  author: string
+  /** 作者在 Sketchfab 的用户名（拼作者主页链接） */
+  authorSlug: string
+  license: 'CC0' | 'CC BY 4.0'
+  /** 这是什么（中文一两句）：哪里的、什么年代或什么性质（实物扫描 / 复制品 / 建模） */
+  what: string
+  /** 与本展品的模型有什么相同、有什么不同（中文一两句）。必须写：不许让人误以为这就是史料里的那件东西 */
+  differs: string
+}
+
 export interface ExhibitDef<S = any, C = any> {
   meta: ExhibitMeta
   /** 展品页的导言陈述 */
@@ -322,6 +339,8 @@ export interface ExhibitDef<S = any, C = any> {
   drive?: DriveDef[]
   /** 迹线（可选，1–3 条）：时间轴上方的曲线 */
   traces?: TraceDef<S>[]
+  /** 实物对照（可选）：「说明与出处」页里嵌入的真实器物三维模型，见 docs/AUTHORING.md「实物对照」 */
+  realObjects?: RealObjectRef[]
   /** 审计配置 */
   audit?: AuditDef
 }

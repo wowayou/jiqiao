@@ -96,6 +96,18 @@ export default defineExhibit<DulunState, DulunControls>({
       note: '从侧面平看：车把放下时支脚着地、抬起时离地',
     },
   ],
+  // 实物对照：他人在 Sketchfab 上发布的真实器物三维模型（点了才加载，见 docs/AUTHORING.md「实物对照」）
+  realObjects: [
+    {
+      uid: "bc84c709f8744a54b282d6df115106f0",
+      title: "Day 236: Antique child wheelbarrow - 1scanaday",
+      author: "Emm",
+      authorSlug: "edemaistre",
+      license: "CC BY 4.0",
+      what: "一辆旧的木制儿童手推车（玩具），实物扫描。",
+      differs: "这是欧式独轮车：轮在最前，货在轮与人手之间，人手要承担相当一部分重量。本展品讲的中式独轮车把货压在轮轴附近，人手省力得多——正好对照着看。它与木牛流马没有直接关系。",
+    },
+  ],
   traces: [
     {
       id: 'hand',

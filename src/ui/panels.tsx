@@ -1,7 +1,7 @@
 // 展品页的各个面板。全部只读 store；运动与读数都来自 simulate 的状态快照。
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { splitRef } from '../exhibit/scene'
-import { DOF_LABEL, GROUP_LABEL, PROVENANCE_LABEL, type AnyExhibit, type Dof, type PartGroup, type TimeMoment } from '../exhibit/types'
+import { DOF_LABEL, GROUP_LABEL, PROVENANCE_LABEL, type AnyExhibit, type Dof, type PartGroup, type RealObjectRef, type TimeMoment } from '../exhibit/types'
 import { timelineSpan, useStage, useStageActions } from '../stage/store'
 import { formatTime, mainStep, minorOf, minorPos } from '../stage/timeline'
 import {
@@ -1050,10 +1050,83 @@ export function IntroPanel({ def }: { def: AnyExhibit }) {
           </li>
         ))}
       </ul>
+      <RealObjects list={def.realObjects ?? []} />
       <p className="shortcuts">
         快捷键：<kbd>空格</kbd> 播放/暂停　<kbd>←</kbd>
         <kbd>→</kbd> 逐步　<kbd>E</kbd> 爆炸/复原　<kbd>S</kbd> 剖切　<kbd>Esc</kbd> 取消选中
       </p>
     </>
+  )
+}
+
+// —— 实物对照 ——
+// 他人在 Sketchfab 上以 CC0 / CC BY 发布的真实器物三维模型。默认不向任何第三方发请求：点了按钮才嵌入 iframe；
+// 署名行（CC BY 要求）不依赖 iframe，任何时候都显示。
+const LICENSE_URL: Record<RealObjectRef['license'], string> = {
+  'CC BY 4.0': 'https://creativecommons.org/licenses/by/4.0/',
+  CC0: 'https://creativecommons.org/publicdomain/zero/1.0/',
+}
+
+function RealObjects({ list }: { list: RealObjectRef[] }) {
+  if (list.length === 0) return null
+  return (
+    <section className="real-objects" aria-labelledby="real-objects-h" data-testid="real-objects">
+      <h3 id="real-objects-h" style={{ fontSize: 'var(--fs-1)', marginTop: 24 }}>
+        实物对照
+      </h3>
+      <p className="panel-note">下面是别人做的真实器物（或复制品）的三维模型，用来和本站的示意模型对着看。它们不是史料，也不是本站所依据的那一件。</p>
+      <ul className="real-list">
+        {list.map((o) => (
+          <RealObjectCard key={o.uid} o={o} />
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+function RealObjectCard({ o }: { o: RealObjectRef }) {
+  const [loaded, setLoaded] = useState(false)
+  const ext = { target: '_blank', rel: 'noopener noreferrer' } as const
+  const frameId = `real-frame-${o.uid}`
+  return (
+    <li className="real-card" data-real={o.uid}>
+      <p className="real-what">{o.what}</p>
+      <p className="real-differs">
+        <b>与本展品：</b>
+        {o.differs}
+      </p>
+      <p className="real-credit" data-testid="real-credit">
+        《
+        <a href={`https://sketchfab.com/3d-models/${o.uid}`} {...ext}>
+          {o.title}
+        </a>
+        》，作者{' '}
+        <a href={`https://sketchfab.com/${o.authorSlug}`} {...ext}>
+          {o.author}
+        </a>
+        ，
+        <a href={LICENSE_URL[o.license]} {...ext}>
+          {o.license}
+        </a>
+        ，来自 Sketchfab
+      </p>
+      <div className="real-actions">
+        <button type="button" className="btn" aria-expanded={loaded} aria-controls={frameId} onClick={() => setLoaded(!loaded)} data-testid="real-toggle">
+          {loaded ? '收起' : '加载三维实物（来自 Sketchfab）'}
+        </button>
+        {!loaded && <small className="real-note">点击后会从 sketchfab.com 加载内容</small>}
+      </div>
+      {loaded && (
+        <iframe
+          id={frameId}
+          className="real-frame"
+          title={o.title}
+          src={`https://sketchfab.com/models/${o.uid}/embed?dnt=1&ui_theme=dark&ui_infos=0&ui_watermark_link=0`}
+          allow="autoplay; fullscreen; xr-spatial-tracking"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+        />
+      )}
+    </li>
   )
 }
