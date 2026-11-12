@@ -153,9 +153,20 @@ export function Toolbar({ def }: { def: AnyExhibit }) {
   const a = useStageActions()
   const ref = useInsetRef('top')
   const [more, setMore] = useState(false)
+  const touring = useStage((s) => s.tour !== null)
   return (
     <div className="stage-overlay" ref={ref} data-more={more}>
       <div className="toolgroup">
+        <button
+          type="button"
+          className="btn btn-primary"
+          aria-pressed={touring}
+          onClick={() => (touring ? a.exitTour() : a.startTour(0))}
+          data-testid="tour-start"
+          title={touring ? '退出讲解（Esc）' : '一环一环讲解这台机器（] 键）'}
+        >
+          {touring ? '退出讲解' : '讲解'}
+        </button>
         <label className="field">
           <span>爆炸</span>
           <input
@@ -360,6 +371,8 @@ function HelpButton() {
       {open && (
         <div className="help-pop" id="help-pop" role="dialog" aria-label="操作说明">
           <dl>
+            <dt>讲解</dt>
+            <dd>点工具条上的「讲解」：一环一环看，舞台下方是这一环的说明，时间只在这一环发生的那一小段里慢速循环</dd>
             <dt>鼠标</dt>
             <dd>左键拖动旋转 · 右键拖动平移 · 滚轮朝指针处缩放 · 点零件选中 · 双击零件凑近看 · 点空白取消选中</dd>
             <dt>触屏</dt>
@@ -368,7 +381,8 @@ function HelpButton() {
             <dd>
               <kbd>空格</kbd> 播放/暂停　<kbd>←</kbd>
               <kbd>→</kbd> 逐步，<kbd>Shift</kbd>+<kbd>←</kbd>
-              <kbd>→</kbd> 整格　<kbd>E</kbd> 爆炸　<kbd>S</kbd> 剖切　<kbd>F</kbd> 凑近看选中的零件　<kbd>R</kbd> 全景　<kbd>1</kbd>–<kbd>9</kbd> 切机位　<kbd>Esc</kbd> 取消选中
+              <kbd>→</kbd> 整格　<kbd>E</kbd> 爆炸　<kbd>S</kbd> 剖切　<kbd>F</kbd> 凑近看选中的零件　<kbd>R</kbd> 全景　<kbd>1</kbd>–<kbd>9</kbd> 切机位　<kbd>[</kbd>
+              <kbd>]</kbd> 讲解上一环 / 下一环　<kbd>Esc</kbd> 取消选中（讲解中为退出讲解）
             </dd>
           </dl>
         </div>
@@ -404,6 +418,66 @@ export function HoverTip({ def }: { def: AnyExhibit }) {
   )
 }
 
+// —— 讲解条：舞台下缘，一环一句话 + 上一环 / 播放 / 下一环 / 退出 ——
+/** 时间窗的长度（模型时间） */
+const durationText = (len: number) =>
+  len < 100 ? `${Number(len.toPrecision(2))} 秒` : len < 7200 ? `${Number((len / 60).toPrecision(2))} 分钟` : `${Number((len / 3600).toPrecision(3))} 小时`
+
+const speedLabel = (v: number) => {
+  const x = Number(v.toPrecision(v >= 10 ? 3 : 2))
+  return x < 1 ? `慢放 ${x}×` : x > 1 ? `快进 ${x}×` : '1×'
+}
+
+export function TourBar({ def }: { def: AnyExhibit }) {
+  const tour = useStage((s) => s.tour)
+  const playing = useStage((s) => s.playing)
+  useStage((s) => s.controls) // 控件变了时间窗会重算
+  const a = useStageActions()
+  if (!tour) return null
+  const i = tour.index
+  const step = def.chain[i]
+  const plan = a.plan()[i]
+  const n = def.chain.length
+  const isAsm = def.timeline.kind === 'assembly'
+  const where = plan ? (isAsm ? `装配 ${Math.round(plan.window[0] * 100)}%–${Math.round(plan.window[1] * 100)}%` : durationText(plan.window[1] - plan.window[0])) : ''
+  return (
+    <section className="tour-bar" aria-label="讲解" aria-live="polite" data-testid="tour-bar" data-step={step.id}>
+      <div className="tour-head">
+        <span className="tour-count" data-testid="tour-count">
+          {i + 1} / {n}
+        </span>
+        <h2 className="tour-title" data-testid="tour-title">
+          {step.title}
+        </h2>
+        {plan && (
+          <span className="tour-meta" title="这一环在时间轴上发生的一小段，循环播放">
+            {speedLabel(plan.speed)} · 循环{isAsm ? ' ' : '一段 '}
+            {where}
+          </span>
+        )}
+      </div>
+      <p className="tour-text">
+        <ProvTag p={step.provenance} />
+        {step.text}
+      </p>
+      <div className="tour-actions">
+        <button type="button" className="btn" onClick={() => a.tourNext(-1)} disabled={i === 0} data-testid="tour-prev" title="上一环（[）">
+          ‹ 上一环
+        </button>
+        <button type="button" className="btn btn-primary" onClick={() => a.setPlaying(!playing)} aria-pressed={playing} data-testid="tour-play" title="播放 / 暂停这一环的循环（空格）">
+          {playing ? '暂停' : '播放'}
+        </button>
+        <button type="button" className="btn" onClick={() => a.tourNext(1)} disabled={i === n - 1} data-testid="tour-next" title="下一环（]）">
+          下一环 ›
+        </button>
+        <button type="button" className="btn" onClick={a.exitTour} data-testid="tour-exit" title="退出讲解（Esc）">
+          退出
+        </button>
+      </div>
+    </section>
+  )
+}
+
 // —— 读数 ——
 export function Readouts({ def }: { def: AnyExhibit }) {
   const snap = useStage((s) => s.snapshot)
@@ -425,7 +499,20 @@ export function Readouts({ def }: { def: AnyExhibit }) {
 export function ChainPanel({ def }: { def: AnyExhibit }) {
   const active = useStage((s) => s.activeSteps)
   const pinned = useStage((s) => s.pinnedStep)
-  const { pinStep, select, lookAtStep } = useStageActions()
+  const tour = useStage((s) => s.tour)
+  const { pinStep, select, lookAtStep, startTour, tourGo } = useStageActions()
+  // 讲解换环时，宽屏上把侧栏滚到这一环（窄屏不滚：那会把整页从舞台上滚走）
+  const listRef = useRef<HTMLOListElement>(null)
+  const tourIndex = tour?.index ?? -1
+  useEffect(() => {
+    if (tourIndex < 0) return
+    try {
+      if (!window.matchMedia('(min-width: 961px)').matches) return
+      listRef.current?.children[tourIndex]?.scrollIntoView({ block: 'nearest' })
+    } catch {
+      /* 无关紧要 */
+    }
+  }, [tourIndex])
   const isJoinery = def.meta.category === 'joinery'
   // 榫卯：逐环累计「已锁住」
   const cumulative = useMemo(() => {
@@ -437,10 +524,27 @@ export function ChainPanel({ def }: { def: AnyExhibit }) {
   }, [def])
   return (
     <>
+      {!tour && (
+        <button
+          type="button"
+          className="btn btn-primary tour-entry"
+          onClick={() => {
+            startTour(0)
+            revealStage()
+          }}
+          data-testid="tour-start-panel"
+        >
+          从第一环开始讲解
+        </button>
+      )}
       <p className="panel-note">
-        {pinned ? '已固定一环（再点一次恢复实时点亮）。' : '运行时，正在起作用的一环会实时点亮。点一环可固定并在画面中高亮它的零件。'}
+        {tour
+          ? '讲解中：点任一环直接讲到那一环。'
+          : pinned
+            ? '已固定一环（再点一次恢复实时点亮）。'
+            : '运行时，正在起作用的一环会实时点亮。点一环可固定并在画面中高亮它的零件。'}
       </p>
-      <ol className="chain" data-testid="chain">
+      <ol className="chain" data-testid="chain" ref={listRef}>
         {def.chain.map((st, i) => {
           const isActive = active.includes(st.id)
           return (
@@ -450,6 +554,11 @@ export function ChainPanel({ def }: { def: AnyExhibit }) {
                 className="chain-head"
                 aria-pressed={pinned === st.id}
                 onClick={() => {
+                  if (tour) {
+                    tourGo(i)
+                    revealStage()
+                    return
+                  }
                   select(null)
                   const pin = pinned !== st.id
                   pinStep(pin ? st.id : null)
@@ -487,9 +596,12 @@ export function ChainPanel({ def }: { def: AnyExhibit }) {
                 type="button"
                 className="btn chain-look"
                 onClick={() => {
-                  select(null)
-                  pinStep(st.id)
-                  lookAtStep(st.id, true)
+                  if (tour) tourGo(i)
+                  else {
+                    select(null)
+                    pinStep(st.id)
+                    lookAtStep(st.id, true)
+                  }
                   revealStage()
                 }}
                 aria-label={`看这里：${st.title}`}

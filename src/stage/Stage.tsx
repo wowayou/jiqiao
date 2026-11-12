@@ -23,12 +23,13 @@ import {
 } from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { evaluateScene, instancesOf, splitRef, type PartInstance } from '../exhibit/scene'
+import { tourTick } from '../exhibit/tour'
 import type { AnyExhibit, FeatureDef } from '../exhibit/types'
 import type { Vec3 } from '../kinematics/vec'
 import { buildGeometries, disposeGeometries, type PartGeometry } from './buildGeometry'
 import { activeStepIds, computeFocus } from './focus'
 import { MaterialLibrary, THEMES, type Variant } from './materials'
-import { prefersReducedMotion, sectionPlane, timelineSpan, useStage, useStageStore, type CameraGoal, type StageStore } from './store'
+import { prefersReducedMotion, sectionPlane, timelineSpan, useStage, useStageStore, wrapT, type CameraGoal, type StageStore } from './store'
 
 interface Inst {
   inst: PartInstance
@@ -299,6 +300,50 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
     return sph
   }
 
+  // 一组零件在若干时刻扫过的范围（讲解：镜头要框住这一环在整个时间窗里的运动，而不只是此刻的位置）。
+  // 位姿直接由 simulate 求，不依赖此刻网格的位置；包围盒用局部包围盒的 8 个角点，略松但足够取景。
+  const partsSphereAt = (ids: string[], features: string[], times: number[]): Sphere | null => {
+    const st = store.getState()
+    const box = new Box3()
+    const set = new Set(ids)
+    const featurePts: Vector3[] = []
+    const m = new Group()
+    for (const t of times) {
+      const sc = evaluateScene(def, def.simulate(t, st.controls), st.explode)
+      for (const it of insts) {
+        if (!set.has(it.inst.part.id)) continue
+        const ist = sc.get(it.inst.key)!
+        if (!ist.visible) continue
+        m.position.set(...ist.pose.p)
+        if (ist.pose.q) m.quaternion.set(...ist.pose.q)
+        else m.quaternion.identity()
+        m.updateMatrixWorld()
+        box.union(geoms.get(it.inst.part.id)!.surface.boundingBox!.clone().applyMatrix4(m.matrixWorld))
+      }
+      for (const ref of features) {
+        const [pid, fid] = splitRef(ref)
+        const feat = def.parts.find((p) => p.id === pid)?.features?.find((f) => f.id === fid)
+        const it = insts.find((i) => i.inst.part.id === pid)
+        if (!feat || !it) continue
+        const ist = sc.get(it.inst.key)!
+        m.position.set(...ist.pose.p)
+        if (ist.pose.q) m.quaternion.set(...ist.pose.q)
+        else m.quaternion.identity()
+        m.updateMatrixWorld()
+        featurePts.push(new Vector3(...feat.anchor).applyMatrix4(m.matrixWorld))
+      }
+    }
+    if (featurePts.length && !box.isEmpty()) {
+      const sz = box.getSize(new Vector3()).length()
+      if (sz > 600 && ids.every((i) => features.some((f) => splitRef(f)[0] === i))) box.makeEmpty()
+    }
+    for (const p of featurePts) box.expandByPoint(p)
+    if (box.isEmpty()) return null
+    const sph = box.getBoundingSphere(new Sphere())
+    if (featurePts.length) sph.radius = Math.max(sph.radius, 70)
+    return sph
+  }
+
   // 从 camPos 看向 center，被哪些零件挡住（不含 targets 本身与已半透明的）
   const occludersOf = (camPos: Vector3, center: Vector3, targets: Set<string>): string[] => {
     const ray = new Raycaster(camPos.clone(), center.clone().sub(camPos).normalize(), 0, camPos.distanceTo(center))
@@ -325,7 +370,7 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
       const dir = (v.dir ? new Vector3(...v.dir) : defaultDir()).normalize()
       goTo(target, dir, fitSphere(v.size / 2))
     } else {
-      const sph = partsSphere(g.ids, g.features)
+      const sph = g.times?.length ? partsSphereAt(g.ids, g.features ?? [], g.times) : partsSphere(g.ids, g.features)
       if (!sph) return
       const m = metrics()
       const dir = currentDir()
@@ -452,7 +497,12 @@ function SceneLive({ def, geoms, store, lib, root, capGroup, insts }: Built & { 
     }
     const dt = Math.min(dtRaw, 0.1)
     let t = st.t
-    if (st.playing) {
+    const tourPlanNow = st.tour && st.playing ? st.plan()[st.tour.index] : null
+    if (tourPlanNow) {
+      // 讲解：只在这一环的时间窗里循环，速度由时间窗决定（不改观众选的速度）
+      t = wrapT(def, tourTick(t, tourPlanNow.window, tourPlanNow.rate, dt, timelineSpan(def), def.timeline.kind === 'cyclic'))
+      store.setState({ t })
+    } else if (st.playing) {
       const tl = def.timeline
       if (tl.kind === 'cyclic') t = (t + dt * st.speed) % timelineSpan(def)
       else {

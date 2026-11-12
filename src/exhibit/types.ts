@@ -136,6 +136,16 @@ export interface ChainStep<S> {
   /** 榫卯：这一步之后新锁住的自由度（相对于 lockedPart） */
   locks?: Dof[]
   locksProvenance?: Provenance
+  /**
+   * 讲解：这一环在时间轴上发生的那一小段 [t0, t1]（机械为模型时间秒，可以跨过 0 写成负的 t0；榫卯为装配进度）。
+   * 省略时自动推导：在一个小循环（或不长的整个周期）里采样 active，取第一段连续为真的区间并留出余量；
+   * 没有 active 的常态说明循环一个小循环。推导不出来（如只在第 100 圈才发生的事）就必须写。
+   */
+  window?: [number, number]
+  /** 讲解：这一环用哪个预设机位（views 的 id）。省略时自动凑近这一环的零件并让开挡在前面的东西。 */
+  view?: string
+  /** 讲解：循环播放的速度倍数（与 timeline.speeds 同义）。省略时按时间窗长度自动取，让一次循环约 5 秒。 */
+  speed?: number
 }
 
 export type ControlDef<C> =

@@ -512,6 +512,53 @@ input[type='range'] {
   background: var(--accent);
 }
 
+/* 讲解条：舞台下缘，不压在模型上 */
+.tour-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding: var(--s2) var(--s4);
+  border-top: 2px solid var(--accent);
+  background: var(--paper-2);
+}
+.tour-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s3);
+}
+.tour-count {
+  font-size: var(--fs-1);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  font-weight: 600;
+}
+.tour-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--fs-2);
+}
+.tour-meta {
+  margin-left: auto;
+  font-size: var(--fs-0);
+  color: var(--ink-3);
+}
+.tour-text {
+  margin: 0;
+  font-size: var(--fs-1);
+  color: var(--ink);
+  max-width: 64em;
+}
+.tour-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+.tour-entry {
+  width: 100%;
+  margin-bottom: var(--s3);
+}
+
 /* 时间轴 */
 .timeline {
   display: flex;
@@ -872,6 +919,16 @@ input[type='range'] {
   }
   .timeline {
     padding: var(--s2) var(--s3);
+  }
+  .tour-bar {
+    padding: var(--s2) var(--s3);
+  }
+  .tour-meta {
+    margin-left: 0;
+  }
+  .tour-actions .btn {
+    flex: 1;
+    padding: 0 var(--s2);
   }
   .timeline-row {
     flex-wrap: wrap;

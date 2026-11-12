@@ -1,6 +1,7 @@
 // 结构校验：不建几何，只查数据是否自洽。注册表测试对所有展品运行它。
 import { assemblyOffsets } from '../kinematics/assembly'
 import { evaluateScene, explodeItems, splitRef } from './scene'
+import { stepWindow } from './tour'
 import type { AnyExhibit, Claim } from './types'
 
 /** 收集展品里所有带出处类别的陈述（用于出处审计与界面）。 */
@@ -60,6 +61,25 @@ export function validateExhibit(def: AnyExhibit, dirName?: string): string[] {
     if (st.locks && !st.locksProvenance) e(`协同链 ${st.id} 写了 locks 却没有 locksProvenance`)
   }
   if (def.chain.length === 0) e('协同链为空')
+
+  // 讲解：时间窗、机位、速度
+  const viewIdsForTour = new Set((def.views ?? []).map((v) => v.id))
+  for (const st of def.chain) {
+    if (st.view !== undefined && !viewIdsForTour.has(st.view)) e(`协同链 ${st.id} 的 view 引用了不存在的机位 ${st.view}`)
+    if (st.speed !== undefined && !(st.speed > 0)) e(`协同链 ${st.id} 的 speed 须为正`)
+    if (st.window) {
+      const [a, b] = st.window
+      if (!Number.isFinite(a) || !Number.isFinite(b) || !(b > a)) e(`协同链 ${st.id} 的 window 须为有限值且 t0 < t1`)
+      else if (def.timeline.kind === 'assembly' && (a < 0 || b > 1)) e(`协同链 ${st.id} 的 window 须在装配进度 [0,1] 内`)
+      else if (def.timeline.kind === 'cyclic' && (b - a > def.timeline.period || a < -def.timeline.period || b > 2 * def.timeline.period))
+        e(`协同链 ${st.id} 的 window 超出了一个周期`)
+    }
+    try {
+      if (!stepWindow(def, st)) e(`协同链 ${st.id} 推导不出讲解时间窗（在小循环里 active 一直为假）：请写 window`)
+    } catch (err) {
+      e(`协同链 ${st.id} 推导讲解时间窗时出错：${(err as Error).message}`)
+    }
+  }
 
   const viewIds = new Set<string>(['all'])
   for (const v of def.views ?? []) {

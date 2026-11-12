@@ -4,7 +4,7 @@ import { getMeta, loadExhibit, relatedMetas } from '../exhibit/registry'
 import type { AnyExhibit } from '../exhibit/types'
 import { StageContext, createStageStore, useStage, useStageActions, type StageStore } from '../stage/store'
 import { SiteHeader, useThemeCtx } from './App'
-import { ChainPanel, IntroPanel, PartsPanel, HoverTip, Readouts, Timeline, Toolbar, ViewBar } from './panels'
+import { ChainPanel, IntroPanel, PartsPanel, HoverTip, Readouts, Timeline, Toolbar, TourBar, ViewBar } from './panels'
 
 export function ExhibitPage({ id }: { id: string }) {
   const meta = getMeta(id)
@@ -82,14 +82,18 @@ function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
   const progress = useStage((s) => s.buildProgress)
   const error = useStage((s) => s.error)
   const selected = useStage((s) => s.selected)
+  const tourStep = useStage((s) => (s.tour ? def.chain[s.tour.index].id : ''))
   const actions = useStageActions()
   // 相关展品：只列注册表里真有的（指向尚未制作的展品时不显示死链，也不报错）
   const related = relatedMetas(def.meta)
 
-  // 在画面里选中零件时切到「零件」页
+  // 在画面里选中零件时切到「零件」页；开始讲解时切回「协同链」
   useEffect(() => {
     if (selected) setTab('parts')
   }, [selected])
+  useEffect(() => {
+    if (tourStep) setTab('chain')
+  }, [tourStep])
 
   // 键盘：空格播放/暂停，←→ 逐步，E 爆炸，S 剖切，Esc 取消
   useEffect(() => {
@@ -99,6 +103,11 @@ function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
       if (e.altKey || e.ctrlKey || e.metaKey) return
       const typing = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA'
       if (e.key === 'Escape') {
+        // 讲解中 Esc 先退出讲解（恢复进讲解前的设置）
+        if (store.getState().tour) {
+          actions.exitTour()
+          return
+        }
         actions.select(null)
         actions.pinStep(null)
         actions.clearFade()
@@ -117,6 +126,11 @@ function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
       else if (e.key === 's' || e.key === 'S') actions.setSection({ on: !st.section.on })
       else if (e.key === 'f' || e.key === 'F') actions.focusPart()
       else if (e.key === 'r' || e.key === 'R') actions.applyView('all')
+      else if (e.key === ']' || e.key === '[') {
+        const dir = e.key === ']' ? 1 : -1
+        if (st.tour) actions.tourNext(dir)
+        else actions.startTour(0)
+      }
       else if (/^[1-9]$/.test(e.key)) {
         const v = st.def.views?.[Number(e.key) - 1]
         if (v) actions.applyView(v.id)
@@ -144,7 +158,7 @@ function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
         </div>
       )}
       <div className="stage-col">
-        <div className="stage-wrap" data-testid="stage" data-ready={ready} data-selected={selected ?? ''}>
+        <div className="stage-wrap" data-testid="stage" data-ready={ready} data-selected={selected ?? ''} data-tour={tourStep}>
           <Suspense fallback={null}>
             <Stage def={def} theme={resolved} label={`${def.meta.title}的三维模型，可拖动旋转、滚轮缩放`} />
           </Suspense>
@@ -158,6 +172,7 @@ function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
             </div>
           )}
         </div>
+        {ready && <TourBar def={def} />}
         <p className="stage-tip">
           <span className="tip-fine">拖动旋转 · 滚轮朝指针处缩放 · 双击零件凑近看 · 点「?」看全部操作</span>
           <span className="tip-touch">单指旋转 · 双指缩放平移 · 双击零件凑近看 · 「?」更多</span>

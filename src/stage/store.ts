@@ -4,6 +4,7 @@ import { createStore, useStore, type StoreApi } from 'zustand'
 import type { AnyExhibit, SectionDef } from '../exhibit/types'
 import type { Vec3 } from '../kinematics/vec'
 import { splitRef } from '../exhibit/scene'
+import { tourPlan, type StepPlan } from '../exhibit/tour'
 import { minorOf, stepSize } from './timeline'
 
 export type SectionAxis = 'default' | 'x' | 'y' | 'z'
@@ -23,9 +24,27 @@ export interface SectionState {
 export type CameraGoal = { nonce: number } & (
   | { kind: 'fit' }
   /** 凑近一组零件，保持当前视线方向，绕它们旋转；auto 表示「只在看不清时才动」（点协同链） */
-  | { kind: 'parts'; ids: string[]; features?: string[]; auto?: boolean }
+  | { kind: 'parts'; ids: string[]; features?: string[]; auto?: boolean; times?: number[] }
   | { kind: 'preset'; id: string }
 )
+
+/** 进讲解之前观众自己的设置：退出讲解时原样恢复（相机除外） */
+export interface TourSaved {
+  explode: number
+  section: SectionState
+  fadeParts: string[]
+  selected: string | null
+  pinnedStep: string | null
+  isolate: boolean
+  playing: boolean
+  activeView: string | null
+}
+
+export interface TourState {
+  /** 当前讲到第几环（def.chain 的下标） */
+  index: number
+  saved: TourSaved
+}
 
 export interface StageState {
   def: AnyExhibit
@@ -61,6 +80,8 @@ export interface StageState {
   inset: { top: number; bottom: number }
   /** 相机旋转/缩放的指令（键盘按钮用），由展台消费 */
   viewCommand: { kind: 'orbit' | 'zoom'; amount: number; nonce: number } | null
+  /** 讲解：非空即在讲解中。讲解中 playing 表示「在这一环的时间窗里循环」 */
+  tour: TourState | null
 }
 
 export interface StageActions {
@@ -81,7 +102,7 @@ export interface StageActions {
   /** 套用预设机位（'all' = 全景）：相机、爆炸、剖切、让开的零件、选中一起到位。 */
   applyView(id: string): void
   /** 协同链一环：必要时（太小或被挡）把相机带过去；force 时一定去。 */
-  lookAtStep(id: string, force?: boolean): void
+  lookAtStep(id: string, force?: boolean, times?: number[]): void
   clearFade(): void
   setFade(ids: string[]): void
   setInset(p: Partial<{ top: number; bottom: number }>): void
@@ -90,6 +111,15 @@ export interface StageActions {
   nudgeView(kind: 'orbit' | 'zoom', amount: number): void
   /** 按当前时间轴步进（秒或进度） */
   step(dir: 1 | -1, big?: boolean): void
+  /** 讲解：从第 index 环开始（默认第一环） */
+  startTour(index?: number): void
+  /** 讲解：转到第 index 环（越界则夹住） */
+  tourGo(index: number): void
+  tourNext(dir: 1 | -1): void
+  /** 退出讲解：恢复进讲解前的爆炸、剖切、让开、选中、孤立、播放状态；相机留在原处 */
+  exitTour(): void
+  /** 当前控件值下每一环的讲解计划（时间窗、速度） */
+  plan(): (StepPlan | null)[]
 }
 
 export type Stage = StageState & StageActions
@@ -107,8 +137,15 @@ export function timelineSpan(def: AnyExhibit): number {
   return def.timeline.kind === 'cyclic' ? def.timeline.period : 1
 }
 
+/** 时间回绕到时间轴范围内：机械取模到 [0, period)，榫卯夹在 [0, 1]。 */
+export function wrapT(def: AnyExhibit, t: number): number {
+  const span = timelineSpan(def)
+  return def.timeline.kind === 'cyclic' ? ((t % span) + span) % span : Math.min(1, Math.max(0, t))
+}
+
 export function createStageStore(def: AnyExhibit): StageStore {
   const tl = def.timeline
+  const planCache: { key: string; value: (StepPlan | null)[] } = { key: '', value: [] }
   const speed = tl.defaultSpeed ?? (tl.speeds.includes(1) ? 1 : tl.speeds[0])
   return createStore<Stage>((set, get) => ({
     def,
@@ -134,15 +171,12 @@ export function createStageStore(def: AnyExhibit): StageStore {
     fadeParts: [],
     inset: { top: 0, bottom: 0 },
     viewCommand: null,
+    tour: null,
 
-    setT: (t) => {
-      const span = timelineSpan(get().def)
-      const v = tl.kind === 'cyclic' ? ((t % span) + span) % span : Math.min(1, Math.max(0, t))
-      set({ t: v })
-    },
+    setT: (t) => set({ t: wrapT(get().def, t) }),
     setPlaying: (p) => {
-      // 装配到头再播放：从头开始
-      if (p && tl.kind === 'assembly' && get().t >= 1) set({ t: 0 })
+      // 装配到头再播放：从头开始（讲解中由时间窗循环负责，不在这里跳）
+      if (p && tl.kind === 'assembly' && get().t >= 1 && !get().tour) set({ t: 0 })
       set({ playing: p })
     },
     togglePlay: () => get().setPlaying(!get().playing),
@@ -176,17 +210,18 @@ export function createStageStore(def: AnyExhibit): StageStore {
         explode: v.explode ?? 0,
         fadeParts: v.fade ?? [],
         selected: v.select ?? null,
-        pinnedStep: null,
+        // 讲解中换机位：这一环仍然点着（强调色不丢）
+        pinnedStep: st.tour ? st.pinnedStep : null,
         section: { on: Boolean(custom), axis: 'default', flip: false, offset: 0, custom },
       })
     },
-    lookAtStep: (id, force) => {
+    lookAtStep: (id, force, times) => {
       const st = get()
       const step = st.def.chain.find((c) => c.id === id)
       if (!step) return
       const ids = step.parts.map((r) => splitRef(r)[0])
       const features = step.parts.filter((r) => splitRef(r)[1])
-      set({ camGoal: goal(st, { kind: 'parts', ids: [...new Set(ids)], features, auto: !force }) })
+      set({ camGoal: goal(st, { kind: 'parts', ids: [...new Set(ids)], features, auto: !force, times }) })
     },
     clearFade: () => set({ fadeParts: [] }),
     setFade: (ids) => set({ fadeParts: ids }),
@@ -206,6 +241,87 @@ export function createStageStore(def: AnyExhibit): StageStore {
       const size = big ? (minor ? minor.period : stepSize(d) * 10) : stepSize(d)
       set({ playing: false })
       get().setT(get().t + dir * size)
+    },
+
+    plan: () => {
+      const st = get()
+      const key = JSON.stringify(st.controls)
+      if (planCache.key !== key) {
+        planCache.key = key
+        planCache.value = tourPlan(st.def, st.controls)
+      }
+      return planCache.value
+    },
+    startTour: (index = 0) => {
+      const st = get()
+      if (!st.tour) {
+        const saved: TourSaved = {
+          explode: st.explode,
+          section: st.section,
+          fadeParts: st.fadeParts,
+          selected: st.selected,
+          pinnedStep: st.pinnedStep,
+          isolate: st.isolate,
+          playing: st.playing,
+          activeView: st.activeView,
+        }
+        set({ tour: { index, saved } })
+      }
+      get().tourGo(index)
+    },
+    tourGo: (index) => {
+      const st = get()
+      if (!st.tour) return
+      const i = Math.max(0, Math.min(st.def.chain.length - 1, index))
+      const step = st.def.chain[i]
+      const p = st.plan()[i]
+      if (!p) return
+      // 每一环都是一整套状态：时间到窗头、这一环点着、不选零件、不孤立；机位由数据决定
+      set({
+        tour: { ...st.tour, index: i },
+        t: wrapT(st.def, p.window[0]),
+        // 减少动效：不自动循环，等观众按播放
+        playing: !prefersReducedMotion(),
+        selected: null,
+        isolate: false,
+        pinnedStep: step.id,
+      })
+      if (p.view) {
+        get().applyView(p.view)
+        set({ pinnedStep: step.id, selected: null })
+      } else {
+        // 没有预设机位：复原爆炸、关剖切，镜头凑近这一环在整个时间窗里扫过的范围，挡在前面的让开
+        set({
+          explode: 0,
+          section: { on: false, axis: 'default', flip: false, offset: 0, custom: null },
+          fadeParts: [],
+          activeView: null,
+        })
+        const n = 8
+        const times = Array.from({ length: n + 1 }, (_, k) => wrapT(st.def, p.window[0] + ((p.window[1] - p.window[0]) * k) / n))
+        get().lookAtStep(step.id, true, times)
+      }
+    },
+    tourNext: (dir) => {
+      const st = get()
+      if (st.tour) st.tourGo(st.tour.index + dir)
+    },
+    exitTour: () => {
+      const st = get()
+      if (!st.tour) return
+      const s = st.tour.saved
+      set({
+        tour: null,
+        explode: s.explode,
+        section: s.section,
+        fadeParts: s.fadeParts,
+        selected: s.selected,
+        pinnedStep: s.pinnedStep,
+        isolate: s.isolate,
+        playing: s.playing,
+        // 相机留在讲解最后的位置，机位按钮不再显示为按下
+        activeView: null,
+      })
     },
   }))
 }

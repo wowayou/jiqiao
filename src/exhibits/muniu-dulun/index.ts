@@ -23,6 +23,8 @@ export default defineExhibit<DulunState, DulunControls>({
       parts: ['sack', 'sack#cg', 'axle#fulcrum'],
       text: CHAIN_TEXT.cargo,
       provenance: 'model',
+      // 讲解：抬平车把这一段，货随车架绕轮轴转起来
+      window: [3.6, 6.4],
     },
     {
       id: 'lift',
@@ -31,6 +33,8 @@ export default defineExhibit<DulunState, DulunControls>({
       text: CHAIN_TEXT.lift,
       provenance: 'calc',
       active: hasHand,
+      // 人手几乎全程在出力；讲解只看加力与抬平两段
+      window: [1.6, 6.4],
     },
     {
       id: 'fulcrum',
@@ -39,6 +43,7 @@ export default defineExhibit<DulunState, DulunControls>({
       text: CHAIN_TEXT.fulcrum,
       provenance: 'calc',
       active: hasHand,
+      window: [3.6, 6.4],
     },
     {
       id: 'roll',

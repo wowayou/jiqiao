@@ -43,6 +43,9 @@ export default defineExhibit<JointState, Record<string, never>>({
       text: '刚体模型画不出木头的变形。打开剖切可以看到：卯眼出口上下各有一道三角空隙——真实木料里，被楔撑开的榫头正好填满这里。也因此，在本模型里把横料连同楔一起往外拉，几何上并不会被挡住（测试如实记录了这一点）。',
       provenance: 'model',
       active: (s) => s.p >= 1,
+      // 讲解：剖开看楔打到底、出口两道三角空隙（装好那一刻本身是静止的）
+      window: [0.75, 1],
+      view: 'cut',
     },
   ],
   readouts: [
@@ -60,4 +63,15 @@ export default defineExhibit<JointState, Record<string, never>>({
   sources: {},
   view: { dir: [-0.45, 0.35, 1], target: [40, 0, 0] },
   section: { normal: [0, 0, -1], offset: 0, label: '过榫头中线的竖直剖面（看楔与出口放大段）' },
+  views: [
+    {
+      id: 'cut',
+      label: '剖面',
+      target: [-10, 0, 0],
+      size: 260,
+      dir: [-0.3, 0.2, 1],
+      section: true,
+      note: '过榫头中线剖开：看楔与卯眼出口的放大段',
+    },
+  ],
 })

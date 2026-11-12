@@ -61,6 +61,8 @@ export default defineExhibit<CarState, CarControls>({
       text: '立轮固定在左足轮内侧（「附於左足」），足轮转一周，立轮也转一周。',
       provenance: 'source',
       cite: 'li',
+
+      view: 'train',
     },
     {
       id: 'mesh1',
@@ -69,6 +71,8 @@ export default defineExhibit<CarState, CarControls>({
       text: '立轮顶上的木销从下面拨动下平轮垂下的木销。18 : 54，足轮转 3 周，下平轮转 1 周。两轴互相垂直，齿是交叉相拨的圆木销（本站设定）。',
       provenance: 'calc',
       active: stageActive.mesh1,
+
+      view: 'train',
     },
     {
       id: 'shaft1',
@@ -77,6 +81,8 @@ export default defineExhibit<CarState, CarControls>({
       text: '立贯心轴穿过下平轮中心，顶端是铜旋风轮：两者一起转（同轴关系按文意推定）。',
       provenance: 'reconstruction',
       cite: 'tuiding',
+
+      view: 'train',
     },
     {
       id: 'mesh2',
@@ -85,6 +91,7 @@ export default defineExhibit<CarState, CarControls>({
       text: '旋风轮每转 1/3 周（足轮 1 周），一根拨齿扫过来，把中平轮推过一个齿距后滑脱，中平轮停住等下一根。3/100 × 1/3 = 1/100：足轮 100 周，中平轮 1 周。此环只在拨齿推着木销时点亮。',
       provenance: 'calc',
       active: stageActive.mesh2,
+      view: 'xuanfeng',
     },
     {
       id: 'drum-lift',
@@ -93,6 +100,9 @@ export default defineExhibit<CarState, CarControls>({
       text: '中平轮转到最后十个齿时，轮缘上的斜坡拨子从下面一点点顶高提杆，木人的槌随之举起（机构为本站设定）。',
       provenance: 'model',
       active: (s) => s.lower.lifting,
+      // 足轮第 90–100 圈才发生，小循环里推导不到：快进看提杆被一点点顶高（停在落下之前）
+      window: [90 * T_F, 100 * T_F - 0.2],
+      view: 'lift',
     },
     {
       id: 'drum',
@@ -102,6 +112,9 @@ export default defineExhibit<CarState, CarControls>({
       provenance: 'source',
       cite: 'ji',
       active: (s) => s.lower.striking,
+      // 第 100 圈：提杆越过坡顶、槌落下只有约 0.1 秒，慢放
+      window: [100 * T_F - 0.4, 100 * T_F + 0.4],
+      view: 'drum',
     },
     {
       id: 'shaft2',
@@ -110,6 +123,8 @@ export default defineExhibit<CarState, CarControls>({
       text: '小平轮装在中平轮轴上，与中平轮同转（同轴关系按文意推定）。',
       provenance: 'reconstruction',
       cite: 'tuiding',
+
+      view: 'train',
     },
     {
       id: 'mesh3',
@@ -118,6 +133,8 @@ export default defineExhibit<CarState, CarControls>({
       text: '10 : 100，中平轮转 10 周（十里），上平轮转 1 周。中平轮停着时它们也停着，所以此环与「一拨一停」同时点亮。',
       provenance: 'calc',
       active: stageActive.mesh3,
+
+      view: 'train',
     },
     {
       id: 'zhuo-lift',
@@ -126,6 +143,9 @@ export default defineExhibit<CarState, CarControls>({
       text: '上平轮转到最后一里时，它的拨子把上层提杆慢慢顶高（机构为本站设定）。',
       provenance: 'model',
       active: (s) => s.upper.lifting,
+      // 足轮第 900–1000 圈（最后一里）才发生：快进
+      window: [900 * T_F, 1000 * T_F - 0.2],
+      view: 'zhuo',
     },
     {
       id: 'zhuo',
@@ -135,6 +155,8 @@ export default defineExhibit<CarState, CarControls>({
       provenance: 'source',
       cite: 'ji',
       active: (s) => s.upper.striking,
+      window: [1000 * T_F - 0.4, 1000 * T_F + 0.4],
+      view: 'zhuo',
     },
   ],
   readouts: [
@@ -209,6 +231,24 @@ export default defineExhibit<CarState, CarControls>({
       dir: [0.45, 0.6, -0.8],
       fade: ['frame-upper'],
       note: '上层车架让开：看下层木人的槌落在鼓面上',
+    },
+    {
+      id: 'zhuo',
+      label: '击鐲',
+      target: [-300, 1880, -795],
+      size: 1150,
+      dir: [0.5, 0.3, -1],
+      fade: ['frame-upper', 'deck-1'],
+      note: '上层车架、台板让开：看上平轮的拨子顶起上层提杆、木人击鐲',
+    },
+    {
+      id: 'lift',
+      label: '提杆',
+      target: [60, 1540, 575],
+      size: 800,
+      dir: [0.55, 0.35, 1],
+      fade: ['frame-upper', 'deck-1', 'wheel-right'],
+      note: '台板、右足轮让开：看中平轮缘上的拨子顶起下层提杆',
     },
   ],
   audit: {

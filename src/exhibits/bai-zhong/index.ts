@@ -3,7 +3,7 @@ import { defineExhibit, type ChainStep } from '../../exhibit/types'
 import type { PalletName, EscPhase } from '../../kinematics/escapement'
 import { intro, sources } from './content'
 import { meta } from './meta'
-import { AMPLITUDE, PENDULUM_LENGTH, PENDULUM_PERIOD, PERIOD, simulate, type ClockControls, type ClockState } from './model'
+import { AMPLITUDE, PENDULUM_LENGTH, PENDULUM_PERIOD, PERIOD, WIND, simulate, type ClockControls, type ClockState } from './model'
 import { parts } from './parts'
 
 /** 机芯前面挡视线的零件：表盘、前夹板、指针与跨轮——预设机位里让开（半透明） */
@@ -33,6 +33,7 @@ function escSteps(p: PalletName): ChainStep<ClockState>[] {
       text: `擒纵轮被重锤的力推着要往前转，齿尖却抵在${name}的锁面上。锁面是以叉轴为圆心的圆弧，摆带着叉继续摆，叉瓦只是沿着齿尖滑过——轮子纹丝不动（直进式：不前进、也不倒退）。`,
       provenance: 'calc',
       active: (s) => s.phase === 'lock' && s.pallet === p,
+      view: 'escapement',
     },
     {
       id: `impulse-${p}`,
@@ -41,6 +42,7 @@ function escSteps(p: PalletName): ChainStep<ClockState>[] {
       text: `${swing}摆过中点附近，锁面走完，齿尖滑上${name}下端的斜面（冲击面）。齿尖一边沿斜面往前走（轮子前进约 4.5°），一边把叉——也就是摆——顺着它正在走的方向推一把，补上摆每一摆损失的能量。`,
       provenance: 'calc',
       active: (s) => s.phase === 'impulse' && s.pallet === p,
+      view: 'escapement',
     },
     {
       id: `drop-${p}`,
@@ -49,6 +51,7 @@ function escSteps(p: PalletName): ChainStep<ClockState>[] {
       text: `齿尖滑出冲击面的末端，脱开了${name}。此刻没有东西挡着，擒纵轮在重锤的力下空转一小段（约 1.5°），直到另一颗齿撞上${PALLET_LABEL[OTHER[p]]}的锁面被接住。`,
       provenance: 'calc',
       active: (s) => s.phase === 'drop' && s.pallet === p,
+      view: 'escapement',
     },
   ]
 }
@@ -82,6 +85,8 @@ export default defineExhibit<ClockState, ClockControls>({
       parts: ['weight', 'cord', 'barrel'],
       text: '重锤拉着绳，绳轮带着大轮转：这是一股连续的力，一直顶在整条轮系上，最后顶到擒纵轮的齿尖。',
       provenance: 'reconstruction',
+      // 讲解：重锤 12 小时只降约 21 cm，快进看完整个走时段（不含最后的上弦）
+      window: [0, PERIOD - WIND],
     },
     {
       id: 'train-step',
@@ -89,6 +94,7 @@ export default defineExhibit<ClockState, ClockControls>({
       parts: ['great-wheel', 'center-wheel', 'third-wheel', 'escape-wheel'],
       text: '只有在冲击和落的时候擒纵轮才转，大轮、中心轮、三轮跟着同时走一小步，重锤也跟着下降一点；锁住时整条轮系连同重锤都停着。',
       provenance: 'calc',
+      view: 'train',
     },
     ...escSteps('entry'),
     ...escSteps('exit'),
@@ -105,6 +111,8 @@ export default defineExhibit<ClockState, ClockControls>({
       parts: ['second-hand', 'minute-hand', 'hour-hand', 'cannon', 'minute-wheel', 'hour-wheel'],
       text: '擒纵轮 30 齿、每 2 s 前进 1 齿，一分钟一圈，直接带秒针；经三轮、中心轮减速 60 倍到分针；再经跨轮管、过轮、时轮减速 12 倍到时针。速比 秒 : 分 : 时 = 1 : 1/60 : 1/720。',
       provenance: 'calc',
+      // 讲解：5 分钟快进成约 5 秒——秒针转 5 圈、分针走 30°，看得出三根针的快慢
+      window: [0, 300],
     },
     {
       id: 'wind',
@@ -113,6 +121,8 @@ export default defineExhibit<ClockState, ClockControls>({
       text: '时间轴的最后 30 分钟里，绳轮借棘轮单向倒转，把绳卷回、把重锤提回原高，于是 12 小时的周期首尾一致。本模型假定上弦时有保持力，走时不中断。',
       provenance: 'model',
       active: (s) => s.winding,
+      // 只在周期最后 30 分钟发生，小循环里推导不到
+      window: [PERIOD - WIND, PERIOD],
     },
   ],
   readouts: [

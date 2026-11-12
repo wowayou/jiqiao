@@ -21,6 +21,8 @@ function leverSteps(k: number): ChainStep<DuiState>[] {
       text: `拨板转到碓${n}的碓尾上方，圆头压住碓尾上表面，把碓尾往下压；碓杆绕支点轴转动，另一端的碓头被抬起。压着的这一段里，碓杆的转角由「圆头与碓尾上表面相切」的几何关系算出，板与碓尾始终贴合。`,
       provenance: 'calc',
       active: on('push'),
+      // 讲解：碓一有剖开的机位，其余两个碓自动凑近
+      view: k === 0 ? 'peg' : undefined,
     },
     {
       id: `fall-${k + 1}`,
@@ -29,6 +31,7 @@ function leverSteps(k: number): ChainStep<DuiState>[] {
       text: `拨板的圆头滑过碓尾末端，脱开；没有东西再压着碓尾，碓头靠自重下落，碓杆转回去。本模型取匀角加速度下落，加速度为本站设定。`,
       provenance: 'model',
       active: on('fall'),
+      view: k === 0 ? 'peg' : undefined,
     },
     {
       id: `strike-${k + 1}`,
@@ -37,6 +40,7 @@ function leverSteps(k: number): ChainStep<DuiState>[] {
       text: `碓头落到臼里的谷粒上，砸一下，停在那里等下一块拨板。下一块拨板要等轴再转过一个角度才到，所以碓头总能先落定。（落进臼里之后 ${STRIKE_FLASH} s 内在此点亮，时长为本站设定。）`,
       provenance: 'reconstruction',
       active: on('strike'),
+      view: k === 0 ? 'strike' : undefined,
     },
   ]
 }
