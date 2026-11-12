@@ -83,6 +83,7 @@ function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
   const error = useStage((s) => s.error)
   const selected = useStage((s) => s.selected)
   const tourStep = useStage((s) => (s.tour ? def.chain[s.tour.index].id : ''))
+  const touring = tourStep !== ''
   const actions = useStageActions()
   // 相关展品：只列注册表里真有的（指向尚未制作的展品时不显示死链，也不报错）
   const related = relatedMetas(def.meta)
@@ -174,10 +175,13 @@ function ExhibitLayout({ def, store }: { def: AnyExhibit; store: StageStore }) {
           )}
         </div>
         {ready && <TourBar def={def} />}
-        <p className="stage-tip">
-          <span className="tip-fine">拖动旋转 · 滚轮朝指针处缩放 · 双击零件凑近看 · 光标变手形的零件可直接拖 · 点「?」看全部操作</span>
-          <span className="tip-touch">单指旋转 · 双指缩放平移 · 双击凑近 · 圈出的零件可按住拖 · 「?」更多</span>
-        </p>
+        {/* 讲解中画面与说明条要地方：操作提示行先收起（「?」里有全部操作） */}
+        {!touring && (
+          <p className="stage-tip">
+            <span className="tip-fine">拖动旋转 · 滚轮朝指针处缩放 · 双击零件凑近看 · 光标变手形的零件可直接拖 · 点「?」看全部操作</span>
+            <span className="tip-touch">单指旋转 · 双指缩放平移 · 双击凑近 · 圈出的零件可按住拖 · 「?」更多</span>
+          </p>
+        )}
         <Traces def={def} />
         <Timeline def={def} />
         <Readouts def={def} />

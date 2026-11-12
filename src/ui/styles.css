@@ -33,6 +33,8 @@
   --r2: 8px;
   --header-h: 56px;
   --aside-w: 400px;
+  /* 控件高度：鼠标 32 px；触屏（pointer: coarse）才放大到 44 px，桌面按钮不撑大 */
+  --ctl-h: 32px;
   color-scheme: light;
 }
 
@@ -98,7 +100,7 @@ input {
   align-items: center;
   justify-content: center;
   gap: var(--s1);
-  min-height: 34px;
+  min-height: var(--ctl-h);
   padding: 0 var(--s3);
   border: 1px solid var(--line-strong);
   border-radius: var(--r1);
@@ -120,7 +122,7 @@ input {
   cursor: not-allowed;
 }
 .btn-icon {
-  width: 34px;
+  width: var(--ctl-h);
   padding: 0;
 }
 .btn-primary {
@@ -130,7 +132,7 @@ input {
   min-width: 72px;
 }
 select.select {
-  min-height: 34px;
+  min-height: var(--ctl-h);
   padding: 0 var(--s2);
   border: 1px solid var(--line-strong);
   border-radius: var(--r1);
@@ -457,8 +459,9 @@ input[type='range'] {
 }
 .stage-tip {
   margin: 0;
-  padding: 2px var(--s4);
+  padding: 1px var(--s4);
   font-size: var(--fs-0);
+  line-height: 20px;
   color: var(--ink-3);
   border-top: 1px solid var(--line);
   background: var(--paper);
@@ -520,6 +523,28 @@ input[type='range'] {
   padding: var(--s2) var(--s4);
   border-top: 2px solid var(--accent);
   background: var(--paper-2);
+}
+/* 桌面：按钮收到标题行右侧，说明文字独占下一行——讲解条只占两行高，舞台才大 */
+@media (min-width: 961px) {
+  .tour-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'head actions' 'text text';
+    align-items: center;
+    column-gap: var(--s4);
+    row-gap: 2px;
+    padding: 6px var(--s4);
+  }
+  .tour-head {
+    grid-area: head;
+  }
+  .tour-actions {
+    grid-area: actions;
+    flex-wrap: nowrap;
+  }
+  .tour-text {
+    grid-area: text;
+  }
 }
 .tour-head {
   display: flex;
@@ -642,7 +667,7 @@ input[type='range'] {
   pointer-events: none;
 }
 .trace-label.in-gutter {
-  height: 38px;
+  height: var(--trace-row, 32px);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -658,13 +683,37 @@ input[type='range'] {
   font-variant-numeric: tabular-nums;
 }
 .trace-notes {
-  padding: 0 var(--s4) var(--s1);
+  padding: 0 var(--s4);
   font-size: var(--fs-0);
   color: var(--ink-3);
 }
 .trace-notes summary {
   cursor: pointer;
   width: max-content;
+  line-height: 20px;
+}
+/* 桌面：「怎么读」收在曲线右侧的空处，不再单占一行；展开后说明在曲线下面 */
+@media (min-width: 961px) {
+  .traces {
+    position: relative;
+  }
+  .trace-notes {
+    padding: 0;
+  }
+  .trace-notes summary {
+    position: absolute;
+    top: 6px;
+    right: var(--s4);
+  }
+  .trace-notes ul {
+    padding: 0 var(--s4);
+  }
+  .trace-notes[open] {
+    padding-bottom: var(--s1);
+  }
+}
+.trace-notes[open] {
+  padding-bottom: var(--s1);
 }
 .trace-notes ul {
   margin: var(--s1) 0;
@@ -680,7 +729,7 @@ input[type='range'] {
   display: flex;
   flex-direction: column;
   gap: var(--s1);
-  padding: var(--s2) var(--s4);
+  padding: 6px var(--s4);
   border-top: 1px solid var(--line);
   background: var(--paper);
 }
@@ -714,28 +763,60 @@ input[type='range'] {
   text-align: right;
 }
 
-/* 读数 */
+/* 读数：栅格（标签在上、数值在下）；讲解中默认折成一行，点一下展开 */
 .readouts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s1) var(--s5);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--s2);
   margin: 0;
-  padding: var(--s2) var(--s4) var(--s3);
+  padding: 6px var(--s4);
   border-top: 1px solid var(--line);
   background: var(--paper);
   font-size: var(--fs-1);
 }
-.readouts div {
-  display: flex;
-  gap: var(--s2);
-  align-items: baseline;
+.readout-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 2px var(--s4);
+  margin: 0;
 }
-.readouts dt {
+.readout-grid > div {
+  min-width: 0;
+}
+.readout-grid dt {
+  font-size: var(--fs-0);
+  line-height: 16px;
   color: var(--ink-3);
 }
-.readouts dd {
+.readout-grid dd {
   margin: 0;
+  line-height: 20px;
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.readout-brief {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  line-height: var(--ctl-h);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.readout-brief b {
+  margin-right: var(--s1);
+  font-weight: 400;
+  color: var(--ink-3);
+}
+.readout-brief span + span {
+  margin-left: var(--s4);
+}
+.readout-toggle {
+  min-height: 24px;
+  padding: 0 var(--s2);
+  font-size: var(--fs-0);
+  color: var(--ink-2);
 }
 
 /* 侧栏 */
@@ -942,6 +1023,16 @@ input[type='range'] {
   color: var(--ink-2);
   background: var(--paper);
   white-space: nowrap;
+}
+/* 一字标记：圆角小方块，比整句标签安静 */
+.prov-mark {
+  margin: 0 0 0 4px;
+  padding: 0;
+  width: 17px;
+  text-align: center;
+  font-size: 11px;
+  vertical-align: 1px;
+  cursor: help;
 }
 .prov-source {
   border-color: var(--ink);

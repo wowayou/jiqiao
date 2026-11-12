@@ -14,7 +14,7 @@ import {
   traceKey,
   type TraceSamples,
 } from '../stage/traces'
-import { ClaimItem, ClaimList, ProvTag } from './Provenance'
+import { ClaimItem, ClaimList, ProvMark, ProvTag } from './Provenance'
 
 /** 窄屏上舞台在页面顶部、列表在下面：从列表里点零件/链环后把舞台滚回视野，免得选中了却看不到。 */
 export function revealStage() {
@@ -511,7 +511,7 @@ export function TourBar({ def }: { def: AnyExhibit }) {
 }
 
 // —— 迹线：时间轴上方，每条一行、各自纵轴，横轴与细调条（或主进度条）对齐 ——
-const TRACE_ROW = 38
+const TRACE_ROW = 32
 
 export function Traces({ def }: { def: AnyExhibit }) {
   const traces = def.traces ?? []
@@ -660,20 +660,77 @@ export function Traces({ def }: { def: AnyExhibit }) {
   )
 }
 
+/** 订阅一条媒体查询（窗口尺寸变化时跟着变） */
+function useMediaQuery(q: string): boolean {
+  const [on, setOn] = useState(() => {
+    try {
+      return window.matchMedia(q).matches
+    } catch {
+      return false
+    }
+  })
+  useEffect(() => {
+    let mq: MediaQueryList
+    try {
+      mq = window.matchMedia(q)
+    } catch {
+      return
+    }
+    const f = () => setOn(mq.matches)
+    f()
+    mq.addEventListener('change', f)
+    return () => mq.removeEventListener('change', f)
+  }, [q])
+  return on
+}
+
 // —— 读数 ——
+// 栅格：标签在上、数值在下。讲解中默认折成一行（舞台要大），点「展开」看全部；不讲解时默认展开。
 export function Readouts({ def }: { def: AnyExhibit }) {
   const snap = useStage((s) => s.snapshot)
+  const touring = useStage((s) => s.tour !== null)
+  const short = useMediaQuery('(min-width: 961px) and (max-height: 800px)')
+  // null = 跟随默认（讲解中、或桌面上屏幕不高时折叠，其余展开）；观众点过之后按观众的来，进出讲解时重新回到默认
+  const [pref, setPref] = useState<boolean | null>(null)
+  useEffect(() => setPref(null), [touring])
+  const open = pref ?? !(touring || short)
   return (
-    <dl className="readouts" aria-label="读数" data-testid="readouts">
-      {def.readouts.map((r) => (
-        <div key={r.label}>
-          <dt>{r.label}</dt>
-          <dd>
-            {r.value(snap)} <ProvTag p={r.provenance} />
-          </dd>
+    <div className="readouts" data-testid="readouts" data-open={open}>
+      {open ? (
+        <dl className="readout-grid" id="readout-grid" aria-label="读数">
+          {def.readouts.map((r) => (
+            <div key={r.label}>
+              <dt>{r.label}</dt>
+              <dd>
+                {r.value(snap)}
+                <ProvMark p={r.provenance} />
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <div className="readout-brief" id="readout-grid">
+          {def.readouts.map((r) => (
+            <span key={r.label}>
+              <b>{r.label}</b>
+              {r.value(snap)}
+              <ProvMark p={r.provenance} />
+            </span>
+          ))}
         </div>
-      ))}
-    </dl>
+      )}
+      <button
+        type="button"
+        className="btn readout-toggle"
+        aria-expanded={open}
+        aria-controls="readout-grid"
+        onClick={() => setPref(!open)}
+        data-testid="readouts-toggle"
+        title={open ? '把读数折成一行' : '展开全部读数'}
+      >
+        {open ? '收起读数' : `展开读数（${def.readouts.length}）`}
+      </button>
+    </div>
   )
 }
 
